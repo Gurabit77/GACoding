@@ -1,0 +1,72 @@
+<button id="gura-chat-toggle" title="AI 对话"><svg class="gct-ico" viewBox="0 0 14 12" width="26" height="22" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><path fill="#3d2000" d="M2 0h10v1H2zM1 1h1v1H1zM12 1h1v1h-1zM0 2h1v5H0zM13 2h1v5h-1zM1 7h1v1H1zM12 7h1v1h-1zM2 8h3v1H2zM7 8h5v1H7zM4 9h1v1H4zM3 10h1v1H3zM2 11h1v1H2z"/><path fill="#fff4c4" d="M2 1h10v1H2zM1 2h12v5H1zM2 7h10v1H2zM5 8h2v1H5zM3 9h1v1H3z"/><path fill="#3d2000" d="M3 4h2v1H3zM6 4h2v1H6zM9 4h2v1H9z"/></svg></button>
+
+<div id="gura-chat-panel">
+  <div class="gcp-header">
+    <div class="title">GACoding 助手</div>
+    <button id="gcp-newchat" title="清空对话历史">⟳ 新会话</button>
+    <button id="gcp-close" title="关闭面板">✕</button>
+  </div>
+
+  <!-- 单一三态切换：闲聊 / 项目 / 终端 -->
+  <div class="gcp-mode-bar">
+    <button class="gcp-mode active" data-mode="chat" title="自由对话，不会触发 PRD 流程">
+      <span class="gcp-mode-icon"><svg viewBox="0 0 14 12" width="14" height="12" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M2 0h10v1H2zM1 1h1v1H1zM12 1h1v1h-1zM0 2h1v5H0zM13 2h1v5h-1zM1 7h1v1H1zM12 7h1v1h-1zM2 8h3v1H2zM7 8h5v1H7zM4 9h1v1H4zM3 10h1v1H3zM2 11h1v1H2zM3 4h2v1H3zM6 4h2v1H6zM9 4h2v1H9z"/></svg></span>
+      <span class="gcp-mode-label">闲聊</span>
+    </button>
+    <button class="gcp-mode" data-mode="project" title="AI 引导：需求 → PRD → prd.json">
+      <span class="gcp-mode-icon">⬢</span>
+      <span class="gcp-mode-label">项目</span>
+    </button>
+    <button class="gcp-mode" data-mode="term" title="原生终端（不经过 AI）">
+      <span class="gcp-mode-icon">▣</span>
+      <span class="gcp-mode-label">终端</span>
+    </button>
+    <div class="gcp-mode-indicator" id="gcp-mode-indicator"></div>
+  </div>
+
+  <div class="gcp-cli-bar" id="gcp-cli-bar">
+    <span style="color:#888">CLI:</span>
+    <select id="gcp-cli-select"></select>
+    <button id="gcp-cli-add" title="手动添加 CLI">＋</button>
+    <button id="gcp-cli-rescan" title="重新扫描">↻</button>
+  </div>
+
+  <div class="gcp-body" id="gcp-body">
+    <div class="gcp-msg system">面板已就绪。选择 CLI 后即可开始对话。</div>
+  </div>
+
+  <div id="gura-term-wrap"><div id="gura-term"></div></div>
+
+  <div class="gcp-input-wrap" id="gcp-input-wrap">
+    <textarea class="gcp-input" id="gcp-input" placeholder="输入消息… (Enter 发送，Shift+Enter 换行)"></textarea>
+    <div class="gcp-input-foot">
+      <button id="gcp-send">发送</button>
+      <button id="gcp-cancel" style="display:none">取消</button>
+      <div class="hint" id="gcp-hint"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 添加 CLI 模态框 -->
+<div class="gcp-modal" id="gcp-add-modal">
+  <div class="gcp-modal-card">
+    <h3>＋ 添加自定义 CLI</h3>
+    <label>显示名称</label>
+    <input id="m-name" placeholder="例如：我的 GPT 助手">
+
+    <label>可执行文件路径</label>
+    <div class="row">
+      <input id="m-path" placeholder="/usr/local/bin/xxx">
+      <button id="m-browse">浏览…</button>
+    </div>
+
+    <label>调用模板（一行一个参数，用 {prompt} 占位）</label>
+    <textarea id="m-template" rows="3" placeholder="-p&#10;{prompt}"></textarea>
+    <div class="gcp-help">例：claude 是 <code>--print --dangerously-skip-permissions {prompt}</code></div>
+
+    <div class="gcp-modal-actions">
+      <button class="cancel" id="m-cancel">取消</button>
+      <button class="save" id="m-save">保存</button>
+    </div>
+  </div>
+</div>

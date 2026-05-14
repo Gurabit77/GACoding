@@ -1,0 +1,13 @@
+{
+  "name": "pi-agent-tasklist",
+  "version": "1.0.0",
+  "description": "Gura Progress Inspector — AI Coding 进度可视化面板",
+  "type": "module",
+  "bin": {
+    "pi": "./cli.mjs"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs --port 7334"
+  }
+}

@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>GACoding — 选择项目</title>
+<style>
+@font-face { font-family: 'Zpix'; src: url('../../Zpix.ttf') format('truetype'); }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Zpix', -apple-system, 'PingFang SC', sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 50%, #533483 100%);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  -webkit-app-region: drag;
+  user-select: none;
+}
+.shell {
+  width: 1040px; max-width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  -webkit-app-region: no-drag;
+}
+.card {
+  background: rgba(0,0,0,0.42);
+  border: 3px solid #ffd166;
+  border-radius: 12px;
+  padding: 28px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  display: flex; flex-direction: column;
+  min-height: 540px;
+}
+.card.cli { border-color: #60a5fa; }
+.card h2 { font-size: 15px; color: #ffd166; margin-bottom: 14px; letter-spacing: 1px; }
+.card.cli h2 { color: #60a5fa; }
+h1 {
+  font-size: 28px; text-align: center; color: #ffd166;
+  text-shadow: 3px 3px 0 #b58400; margin-bottom: 4px; letter-spacing: 2px;
+}
+.subtitle { text-align: center; font-size: 12px; color: #aaa; margin-bottom: 22px; }
+
+.btn {
+  display: block; width: 100%; padding: 12px; margin: 8px 0;
+  border: 2px solid #4ade80; border-radius: 8px;
+  background: rgba(74, 222, 128, 0.15); color: #4ade80;
+  font-family: inherit; font-size: 14px; cursor: pointer;
+  transition: all 0.15s;
+}
+.btn:hover { background: rgba(74, 222, 128, 0.3); transform: translateY(-1px); }
+.btn.secondary { border-color: #60a5fa; color: #60a5fa; background: rgba(96, 165, 250, 0.15); }
+.btn.secondary:hover { background: rgba(96, 165, 250, 0.3); }
+.btn.small { padding: 6px 10px; margin: 0; font-size: 11px; display: inline-block; width: auto; }
+.btn.warn { border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.1); }
+.btn.warn:hover { background: rgba(239, 68, 68, 0.25); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+.recent { margin-top: 18px; border-top: 1px dashed #555; padding-top: 14px; flex: 1; overflow-y: auto; }
+.recent-title { font-size: 11px; color: #888; margin-bottom: 8px; }
+.recent-item {
+  padding: 8px 10px; margin: 4px 0;
+  background: rgba(255,255,255,0.05); border: 1px solid #333; border-radius: 6px;
+  cursor: pointer; font-size: 11px; word-break: break-all; transition: all 0.15s;
+}
+.recent-item:hover { background: rgba(255,209,102,0.15); border-color: #ffd166; }
+.empty-hint { color: #555; font-size: 11px; text-align: center; padding: 20px 10px; line-height: 1.7; }
+
+/* CLI panel */
+.first-run-banner {
+  background: linear-gradient(90deg, rgba(96,165,250,0.2), rgba(74,222,128,0.1));
+  border: 2px solid #60a5fa; border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 12px;
+  font-size: 11px; color: #a3d4ff; line-height: 1.6;
+}
+.first-run-banner b { color: #ffd166; }
+.cli-toolbar { display: flex; gap: 6px; margin-bottom: 10px; }
+.cli-toolbar .btn { margin: 0; flex: 1; padding: 8px; font-size: 12px; }
+.cli-list { flex: 1; overflow-y: auto; }
+.cli-empty { color: #555; font-size: 11px; text-align: center; padding: 30px 10px; line-height: 1.8; }
+.cli-row {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px; margin: 6px 0;
+  background: rgba(0,0,0,0.35); border: 2px solid #333; border-radius: 7px;
+  font-size: 11px; transition: all 0.15s;
+}
+.cli-row.active { border-color: #ffd166; background: rgba(255,209,102,0.1); }
+.cli-row .hd { display: flex; align-items: center; gap: 8px; }
+.cli-row .hd .name { font-size: 13px; color: #fff; flex: 1; }
+.cli-row.active .hd .name { color: #ffd166; }
+.cli-row .src {
+  font-size: 9px; padding: 2px 6px; border-radius: 3px;
+  background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid #4ade80;
+}
+.cli-row .src.custom { background: rgba(168,85,247,0.15); color: #c084fc; border-color: #a855f7; }
+.cli-row .path { color: #888; font-size: 10px; word-break: break-all; }
+.cli-row .ver { color: #666; font-size: 10px; }
+.cli-row .actions { display: flex; gap: 6px; margin-top: 2px; }
+.cli-row .actions .btn { padding: 4px 9px; font-size: 10px; flex: 0 0 auto; }
+.cli-row .actions .default-tag {
+  padding: 4px 9px; font-size: 10px; color: #ffd166; border: 1px solid #ffd166;
+  border-radius: 5px; background: rgba(255,209,102,0.08);
+}
+.cli-row .test-tag {
+  padding: 3px 8px; font-size: 10px; border-radius: 4px; display: inline-block; vertical-align: middle;
+}
+.cli-row .test-tag.loading { background: rgba(255,255,255,0.05); color: #aaa; border: 1px solid #555; }
+.cli-row .test-tag.ok { background: rgba(74,222,128,0.15); color: #4ade80; border: 1px solid #4ade80; }
+.cli-row .test-tag.err { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid #ef4444; }
+
+.scan-status { font-size: 10px; color: #aaa; margin-bottom: 8px; min-height: 14px; }
+.scan-status .ok { color: #4ade80; }
+.scan-status .err { color: #ef4444; }
+
+.foot { text-align: center; margin-top: 14px; color: #555; font-size: 10px; }
+
+/* 添加 CLI 模态 */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: none; align-items: center; justify-content: center; z-index: 99; }
+.modal.open { display: flex; }
+.modal-card {
+  width: 480px; background: #1a1a2e;
+  border: 3px solid #ffd166; border-radius: 10px;
+  padding: 22px; color: #fff;
+  -webkit-app-region: no-drag;
+}
+.modal-card h3 { color: #ffd166; margin-bottom: 16px; font-size: 16px; }
+.modal-card label { display: block; margin: 10px 0 4px; font-size: 11px; color: #aaa; }
+.modal-card input, .modal-card textarea {
+  width: 100%; padding: 7px 10px;
+  background: #0f0f1e; color: #fff;
+  border: 1px solid #555; border-radius: 5px;
+  font-family: inherit; font-size: 12px;
+}
+.modal-card input:focus, .modal-card textarea:focus { border-color: #ffd166; outline: none; }
+.modal-card .row { display: flex; gap: 6px; }
+.modal-card .row input { flex: 1; }
+.modal-card .row button {
+  background: transparent; border: 1px solid #60a5fa; color: #60a5fa;
+  padding: 6px 12px; border-radius: 5px; font-family: inherit; font-size: 11px;
+  cursor: pointer; white-space: nowrap;
+}
+.modal-help { font-size: 10px; color: #666; margin-top: 3px; line-height: 1.5; }
+.modal-actions { display: flex; gap: 8px; margin-top: 18px; }
+.modal-actions .btn { flex: 1; margin: 0; }
+@media (max-width: 768px) {
+  .shell { grid-template-columns: 1fr; }
+  body { padding: 10px; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <!-- 左：项目 -->
+  <div class="card">
+    <h1>GACoding</h1>
+    <div class="subtitle">AI 自动化 Coding 系统 · 桌面版</div>
+    <button class="btn" id="open">📂 打开项目目录</button>
+    <button class="btn secondary" id="quick">▸ 打开最近项目</button>
+    <div class="recent">
+      <div class="recent-title">最近项目</div>
+      <div id="recentList"><div class="empty-hint">暂无记录</div></div>
+    </div>
+    <div class="foot">提示：首次使用时右侧会自动扫描 AI CLI</div>
+  </div>
+
+  <!-- 右：CLI 管理 -->
+  <div class="card cli">
+    <h2>🔧 AI Coding CLI 管理</h2>
+    <div id="firstRunBanner" class="first-run-banner" style="display:none">
+      <b>👋 第一次使用？</b> 已为你扫描系统里已安装的 AI CLI。选一个设为默认，或点"＋ 手动添加"接入你自己的。完成后打开项目即可使用。
+    </div>
+    <div class="cli-toolbar">
+      <button class="btn small secondary" id="btnRescan" style="flex:1">↻ 重新扫描</button>
+      <button class="btn small" id="btnAdd" style="flex:1">＋ 手动添加</button>
+    </div>
+    <div class="scan-status" id="scanStatus">准备扫描…</div>
+    <div class="cli-list" id="cliList"><div class="cli-empty">加载中…</div></div>
+  </div>
+</div>
+
+<!-- 手动添加 CLI 模态 -->
+<div class="modal" id="addModal">
+  <div class="modal-card">
+    <h3>＋ 添加自定义 CLI</h3>
+    <label>显示名称</label>
+    <input id="mName" placeholder="例：我的 GPT Agent">
+    <label>可执行文件路径</label>
+    <div class="row">
+      <input id="mPath" placeholder="/usr/local/bin/xxx">
+      <button id="mBrowse">浏览…</button>
+    </div>
+    <label>调用模板（一行一个参数，用 {prompt} 占位）</label>
+    <textarea id="mTpl" rows="4" placeholder="-p&#10;{prompt}"></textarea>
+    <div class="modal-help">
+      示例：<br>
+      · claude：<code>--print --dangerously-skip-permissions {prompt}</code><br>
+      · codex：<code>exec --dangerously-bypass-approvals-and-sandbox {prompt}</code><br>
+      · gemini：<code>-p {prompt}</code>
+    </div>
+    <div class="modal-actions">
+      <button class="btn warn" id="mCancel">取消</button>
+      <button class="btn" id="mSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+
+// ----- 项目 -----
+$('#open').onclick = async () => {
+  const p = await window.gura.pickProject();
+  if (p) await window.gura.openProject(p);
+};
+const quickBtn = $('#quick');
+quickBtn.onclick = async () => {
+  const list = await window.gura.recentProjects();
+  if (list && list.length) {
+    await window.gura.openProject(list[0]);
+  } else {
+    const p = await window.gura.pickProject();
+    if (p) await window.gura.openProject(p);
+  }
+};
+(async () => {
+  const list = await window.gura.recentProjects();
+  const box = $('#recentList');
+  if (!list || !list.length) {
+    quickBtn.disabled = true; quickBtn.title = '尚无最近项目';
+    return;
+  }
+  quickBtn.title = '打开：' + list[0];
+  box.innerHTML = list.map(p =>
+    `<div class="recent-item" data-p="${p.replace(/"/g,'&quot;')}">${p}</div>`
+  ).join('');
+  box.querySelectorAll('.recent-item').forEach(el => {
+    el.onclick = async () => { await window.gura.openProject(el.dataset.p); };
+  });
+})();
+
+// ----- 首次引导 -----
+(async () => {
+  try {
+    const { firstRun } = await window.gura.firstRunCheck();
+    if (firstRun) $('#firstRunBanner').style.display = 'block';
+  } catch {}
+})();
+
+// ----- CLI 扫描 -----
+let _cliCache = { detected: [], custom: [], active: null };
+let _cliTest = {}; // id -> 'loading' | {ok, hint, detail, ms}
+
+function esc(s) { return String(s || '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderCli() {
+  const box = $('#cliList');
+  const all = [..._cliCache.detected, ..._cliCache.custom];
+  if (!all.length) {
+    box.innerHTML = '<div class="cli-empty">未检测到任何 AI CLI。<br>安装 <code>claude</code> / <code>codex</code> / <code>gemini</code> / <code>kiro-cli</code> 等，<br>或点击"＋ 手动添加"接入自定义 CLI。</div>';
+    return;
+  }
+  box.innerHTML = all.map(c => {
+    const isActive = c.id === _cliCache.active;
+    const isCustom = c.source === 'custom';
+    const t = _cliTest[c.id];
+    let testHtml = '';
+    if (t === 'loading') {
+      testHtml = '<span class="test-tag loading">测试中…</span>';
+    } else if (t && t.ok === true) {
+      testHtml = `<span class="test-tag ok" title="${esc(t.stdout || '').slice(0,200)}">✓ 连通 (${(t.ms/1000).toFixed(1)}s)</span>`;
+    } else if (t && t.ok === false) {
+      const tip = esc((t.detail || '').slice(0, 200));
+      testHtml = `<span class="test-tag err" title="${tip}">✗ ${esc(t.hint || '失败')}</span>`;
+    }
+    return `<div class="cli-row ${isActive ? 'active' : ''}" data-id="${esc(c.id)}">
+      <div class="hd">
+        <span class="name">${esc(c.name)}</span>
+        <span class="src ${isCustom ? 'custom' : ''}">${isCustom ? '自定义' : '已检测'}</span>
+      </div>
+      <div class="path">${esc(c.path || c.bin)}</div>
+      ${c.version ? `<div class="ver">版本：${esc(c.version)}</div>` : ''}
+      <div class="actions">
+        ${isActive
+          ? `<span class="default-tag">✓ 当前默认</span>`
+          : `<button class="btn small secondary set-default">设为默认</button>`}
+        <button class="btn small test-btn">测试连通</button>
+        ${isCustom ? `<button class="btn small warn remove">移除</button>` : ''}
+        ${testHtml}
+      </div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('.cli-row').forEach(row => {
+    const id = row.dataset.id;
+    row.querySelector('.set-default')?.addEventListener('click', async () => {
+      await window.gura.setActiveCli(id);
+      _cliCache.active = id;
+      renderCli();
+      try { await window.gura.firstRunAck(); } catch {}
+      $('#firstRunBanner').style.display = 'none';
+    });
+    row.querySelector('.remove')?.addEventListener('click', async () => {
+      if (!confirm('移除这个自定义 CLI？（不会删除文件本身）')) return;
+      await window.gura.removeCli(id);
+      await refreshCli();
+    });
+    row.querySelector('.test-btn')?.addEventListener('click', async () => {
+      _cliTest[id] = 'loading';
+      renderCli();
+      try {
+        const r = await window.gura.testCli(id);
+        _cliTest[id] = r;
+      } catch (e) {
+        _cliTest[id] = { ok: false, hint: e.message || '未知错误' };
+      }
+      renderCli();
+    });
+  });
+}
+
+async function refreshCli() {
+  const s = $('#scanStatus');
+  s.innerHTML = '<span>扫描中…</span>';
+  try {
+    const data = await window.gura.listCli();
+    _cliCache = data;
+    const n = data.detected.length + data.custom.length;
+    s.innerHTML = `<span class="ok">已扫描：检测到 ${data.detected.length} 个系统 CLI · 自定义 ${data.custom.length} 个</span>`;
+    if (!n) s.innerHTML = '<span class="err">未检测到任何 CLI，可点"＋ 手动添加"</span>';
+    renderCli();
+  } catch (e) {
+    s.innerHTML = `<span class="err">扫描失败：${esc(e.message || e)}</span>`;
+  }
+}
+$('#btnRescan').onclick = async () => {
+  $('#btnRescan').disabled = true;
+  try { await window.gura.rescanCli(); await refreshCli(); }
+  finally { $('#btnRescan').disabled = false; }
+};
+refreshCli();
+
+// ----- 手动添加模态 -----
+const modal = $('#addModal');
+function openAdd() { modal.classList.add('open'); $('#mName').focus(); }
+function closeAdd() {
+  modal.classList.remove('open');
+  $('#mName').value = ''; $('#mPath').value = ''; $('#mTpl').value = '';
+}
+$('#btnAdd').onclick = openAdd;
+$('#mCancel').onclick = closeAdd;
+modal.addEventListener('click', e => { if (e.target === modal) closeAdd(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAdd(); });
+
+$('#mBrowse').onclick = async () => {
+  const p = await window.gura.pickExecutable();
+  if (p) $('#mPath').value = p;
+};
+$('#mSave').onclick = async () => {
+  const name = $('#mName').value.trim();
+  const binPath = $('#mPath').value.trim();
+  const tplRaw = $('#mTpl').value.trim();
+  if (!name || !binPath) { alert('请填显示名称和路径'); return; }
+  const chatTemplate = tplRaw
+    ? tplRaw.split(/\r?\n/).map(s => s.trim()).filter(Boolean)
+    : ['{prompt}'];
+  try {
+    await window.gura.addCli({ name, path: binPath, chatTemplate });
+    closeAdd();
+    await refreshCli();
+  } catch (e) {
+    alert('保存失败：' + (e.message || e));
+  }
+};
+</script>
+</body>
+</html>

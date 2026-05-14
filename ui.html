@@ -1,0 +1,1892 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gura — Progress Inspector</title>
+<style>
+@font-face{font-family:'Zpix';src:url('/Zpix.ttf') format('truetype');font-display:swap}
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--pixel:'Zpix','Press Start 2P',monospace;
+--sky1:#87ceeb;--sky2:#b0e0ff;--sky3:#d4f0ff;--ground:#4a8a3a;--ground2:#3a7a2a;
+--border:#6b4c2a;--border-hi:#c8a84e;--text:#f0e6d0;--dim:#8a7a6a;
+--green:#6ccb3a;--red:#e84545;--yellow:#f5c542;--cyan:#53d8fb;
+--panel-bg:rgba(42,31,78,.85);--card-bg:linear-gradient(180deg,rgba(58,42,94,.88),rgba(42,31,78,.88))}
+body{color:var(--text);font-family:var(--pixel);font-size:13px;min-height:100vh;overflow:hidden;position:relative;transition:background 2s}
+
+/* === 天空+地面 === */
+.sky{position:fixed;inset:0;z-index:1;background-size:cover;background-position:center bottom;background-repeat:no-repeat;transition:opacity 1.8s ease-in-out}
+.sky-next{z-index:0;opacity:1}
+.cloud{display:none}
+.ground{display:none}
+
+/* === 天气粒子 === */
+.wx-particle{position:fixed;top:-20px;pointer-events:none;z-index:20;image-rendering:pixelated}
+.wx-particle.petal{width:8px;height:8px;animation:petalFall var(--dur) linear infinite;box-shadow:0 0 3px var(--c)}
+@keyframes petalFall{0%{transform:translate(0,0) rotate(0);opacity:.9}50%{transform:translate(var(--dx),50vh) rotate(180deg);opacity:.7}100%{transform:translate(calc(var(--dx)*-1),calc(100vh + 40px)) rotate(360deg);opacity:0}}
+.wx-particle.leaf{width:10px;height:8px;animation:leafFall var(--dur) linear infinite;box-shadow:0 0 2px var(--c)}
+@keyframes leafFall{0%{transform:translate(0,0) rotate(0) scaleX(1);opacity:.9}33%{transform:translate(var(--dx),33vh) rotate(120deg) scaleX(-1)}66%{transform:translate(calc(var(--dx)*-.7),66vh) rotate(240deg) scaleX(1);opacity:.7}100%{transform:translate(var(--dx),calc(100vh + 40px)) rotate(360deg);opacity:0}}
+.wx-particle.snow{animation:snowFall var(--dur) linear infinite}
+@keyframes snowFall{0%{transform:translate(0,0);opacity:.9}50%{transform:translate(var(--dx),50vh);opacity:.7}100%{transform:translate(calc(var(--dx)*-.5),calc(100vh + 40px));opacity:.3}}
+.wx-particle.rain{width:2px;background:linear-gradient(180deg,transparent,var(--c));animation:rainFall var(--dur) linear infinite}
+@keyframes rainFall{0%{transform:translateY(0);opacity:.8}100%{transform:translateY(calc(100vh + 40px));opacity:.2}}
+.wx-particle.firefly{width:4px;height:4px;animation:ffDance var(--dur) ease-in-out infinite}
+@keyframes ffDance{0%{transform:translate(0,0);opacity:.2}25%{transform:translate(var(--dx),var(--dy));opacity:1;box-shadow:0 0 8px var(--c)}50%{transform:translate(calc(var(--dx)*-.5),calc(var(--dy)*1.5));opacity:.4}75%{transform:translate(calc(var(--dx)*.8),calc(var(--dy)*-.3));opacity:.9;box-shadow:0 0 12px var(--c)}100%{transform:translate(0,0);opacity:.2}}
+.wx-particle.star{background:#fff;animation:twinkle var(--dur) ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.15;transform:scale(1)}50%{opacity:1;transform:scale(2)}}
+.wx-particle.shimmer{animation:heatShimmer var(--dur) ease-in-out infinite;background:rgba(255,255,200,.03);width:100px;height:4px}
+@keyframes heatShimmer{0%,100%{transform:scaleX(1) translateY(0);opacity:.3}50%{transform:scaleX(1.3) translateY(-2px);opacity:.6}}
+.wx-particle.aurora{height:80px;animation:auroraPulse var(--dur) ease-in-out infinite;pointer-events:none;filter:blur(2px)}
+@keyframes auroraPulse{0%,100%{opacity:.15;transform:scaleY(1) scaleX(1)}50%{opacity:.4;transform:scaleY(1.4) scaleX(1.1)}}
+.wx-particle.meteor{width:2px;height:2px;background:#fff;animation:meteorShoot var(--dur) linear infinite}
+@keyframes meteorShoot{0%{transform:translate(0,0);opacity:0}5%{opacity:1;box-shadow:0 0 4px #fff,-8px 8px 2px rgba(255,255,255,.5),-16px 16px 1px rgba(255,255,255,.2)}15%{transform:translate(150px,150px);opacity:0}100%{opacity:0}}
+
+/* === 设置齿轮 === */
+.settings-btn{background:none;border:none;cursor:pointer;font-size:18px;color:#ffe066;text-shadow:0 0 8px rgba(255,224,102,.6),0 0 16px rgba(255,224,102,.3);padding:0;line-height:1;animation:gearSpin 8s linear infinite}
+#cliBtn{font-family:var(--pixel);font-size:11px;padding:4px 10px;border:2px solid var(--cyan);color:var(--cyan);text-shadow:1px 1px 0 #000;background:rgba(83,216,251,.08);animation:none;letter-spacing:1px;box-shadow:2px 2px 0 rgba(0,0,0,.35);transition:all .18s;margin-right:6px}
+#cliBtn:hover{background:rgba(83,216,251,.22);transform:translate(-1px,-1px);box-shadow:3px 3px 0 rgba(0,0,0,.5)}
+#cliBtn:active{transform:translate(1px,1px);box-shadow:1px 1px 0 rgba(0,0,0,.3)}
+.settings-btn:hover{animation-duration:2s;text-shadow:0 0 12px rgba(255,224,102,.8),0 0 24px rgba(255,224,102,.5)}
+@keyframes gearSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.settings-panel{position:fixed;top:44px;right:20px;z-index:99;background:linear-gradient(180deg,#3a2a1a,#2a1a0a);border:4px solid var(--border);box-shadow:inset 0 1px 0 var(--border-hi),6px 6px 0 rgba(0,0,0,.4);padding:14px;width:320px;max-height:calc(100vh - 80px);overflow-y:auto;display:none;font-family:var(--pixel)}
+.settings-panel.open{display:block;animation:panelIn .3s ease-out}
+@keyframes panelIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+.settings-panel h3{font-size:13px;color:var(--yellow);margin-bottom:12px;text-shadow:1px 1px 0 #000}
+.setting-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;font-size:11px}
+.setting-row label{color:var(--text);text-shadow:1px 1px 0 #000}
+.setting-row select,.setting-row input{font-family:var(--pixel);font-size:11px;background:#1a1a2e;color:var(--text);border:2px solid var(--border);padding:3px 6px;cursor:pointer}
+.setting-row select:focus,.setting-row input:focus{outline:none;border-color:var(--border-hi)}
+.setting-divider{border:none;border-top:2px solid var(--border);margin:10px 0}
+.setting-section{border:1px solid var(--border);border-radius:4px;margin-bottom:8px;padding:0}
+.setting-section summary{cursor:pointer;padding:8px 10px;font-size:11px;color:var(--yellow);list-style:none;user-select:none}
+.setting-section summary::-webkit-details-marker{display:none}
+.setting-section summary::before{content:'▸ ';transition:transform .2s}
+.setting-section[open] summary::before{content:'▾ '}
+.setting-section[open]{background:rgba(0,0,0,.15)}
+.setting-section .setting-row{padding:0 10px 8px}
+.setting-row.col{flex-direction:column;align-items:flex-start;gap:4px}
+.zoom-ctrl{display:flex;align-items:center;gap:6px}
+.zoom-btn{font-family:var(--pixel);font-size:12px;width:26px;height:26px;border:2px solid var(--border);background:#1a1a2e;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.zoom-btn:hover{border-color:var(--border-hi);color:var(--yellow)}
+.zoom-btn.reset{font-size:14px;width:auto;padding:0 8px}
+.zoom-val{font-size:11px;color:var(--cyan);min-width:36px;text-align:center}
+.setting-path{font-size:10px;color:#aaa;word-break:break-all;background:rgba(0,0,0,.3);padding:3px 6px;border-radius:3px;display:block;max-width:100%;cursor:pointer}
+.setting-path:hover{color:var(--cyan)}
+.setting-val{font-size:10px;color:#ccc}
+.setting-hint{font-size:9px;color:#777;padding:0 10px 8px}
+.setting-actions{display:flex;gap:6px;flex-wrap:wrap}
+.mini-btn{font-family:var(--pixel);font-size:10px;padding:4px 10px;border:2px solid var(--border);background:#1a1a2e;color:var(--text);cursor:pointer}
+.mini-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.recent-list{display:flex;flex-direction:column;gap:3px;max-height:100px;overflow-y:auto;width:100%}
+.recent-list .recent-item{font-size:10px;color:#aaa;padding:3px 6px;background:rgba(0,0,0,.2);border-radius:3px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.recent-list .recent-item:hover{color:var(--cyan);background:rgba(83,216,251,.08)}
+
+/* === 顶栏 === */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;gap:12px;border:4px solid var(--border);border-top:none;background:linear-gradient(180deg,#3a2a1a,#2a1a0a);position:relative;z-index:10;box-shadow:inset 0 1px 0 var(--border-hi),inset 0 -1px 0 rgba(0,0,0,.3)}
+.topbar .logo{color:var(--yellow);font-size:16px;letter-spacing:2px;text-shadow:2px 2px 0 #000,0 0 10px rgba(245,197,66,.3)}
+.topbar .project-name{color:var(--cyan);font-size:13px;text-shadow:1px 1px 0 #000}
+.topbar .progress-text{color:var(--green);font-size:14px;text-shadow:1px 1px 0 #000}
+.conn{font-size:10px}.conn.ok{color:var(--green);text-shadow:0 0 6px var(--green)}.conn.off{color:var(--red);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.3}}
+
+/* === 进度条 === */
+.progress-bar-wrap{padding:6px 20px 8px;background:rgba(0,0,0,.65);border-left:4px solid var(--border);border-right:4px solid var(--border);border-bottom:4px solid var(--border);position:relative;z-index:10;backdrop-filter:blur(2px)}
+.progress-bar{height:20px;background:#0a0a15;border:3px solid var(--border);overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.5),inset 0 0 0 1px var(--border-hi)}
+.progress-fill{height:100%;transition:width .8s;background:linear-gradient(180deg,#9bdb4d,#6ccb3a,#4a9a20);position:relative}
+.progress-fill::after{content:'';position:absolute;top:0;left:0;width:30%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shimmer 2.5s infinite;will-change:transform;transform:translateX(-200%)}
+@keyframes shimmer{100%{transform:translateX(430%)}}
+.progress-fill::before{content:'';position:absolute;top:0;left:0;right:0;height:35%;background:rgba(255,255,255,.2)}
+
+/* === 主布局 === */
+.main{display:grid;grid-template-columns:1fr 360px;height:calc(100vh - 86px);position:relative;z-index:10}
+.tasks-panel{padding:16px;padding-bottom:16px;overflow-y:auto;background:rgba(0,0,0,.5);position:relative}
+.tasks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;min-height:100px}
+
+/* === 卡片 === */
+.task-card{background:var(--card-bg);border:4px solid var(--border);padding:14px;position:relative;overflow:hidden;min-height:200px;display:flex;flex-direction:column;align-items:center;text-align:center;transition:all .4s;box-shadow:inset 0 1px 0 var(--border-hi),4px 4px 0 rgba(0,0,0,.3);backdrop-filter:blur(4px)}
+.task-card:hover{transform:translateY(-2px)}
+.task-card.enter{animation:cardEnter .5s ease-out}
+@keyframes cardEnter{from{opacity:.5;transform:translateY(20px) scale(.9)}to{opacity:1;transform:translateY(0) scale(1)}}
+.task-card.running{border-color:var(--yellow);animation:runGlow 2s ease-in-out infinite}
+@keyframes runGlow{0%,100%{outline:3px solid rgba(245,197,66,.1);outline-offset:0px}50%{outline:3px solid rgba(245,197,66,.35);outline-offset:2px}}
+@keyframes pendingGlow{0%,100%{outline:2px solid rgba(77,201,246,.1);outline-offset:0px}50%{outline:2px solid rgba(77,201,246,.3);outline-offset:2px}}
+.scan-line{position:absolute;top:-100%;left:0;width:100%;height:100%;background:linear-gradient(180deg,transparent 40%,rgba(245,197,66,.06) 50%,transparent 60%);animation:scanline 2.5s linear infinite;pointer-events:none}
+@keyframes scanline{0%{top:-100%}100%{top:100%}}
+.load-bar{position:absolute;bottom:0;left:0;height:4px;background:linear-gradient(90deg,var(--yellow),#ffe066,var(--yellow));animation:loadBar 1.8s ease-in-out infinite;pointer-events:none}
+@keyframes loadBar{0%{left:0;width:0}50%{width:40%}100%{left:100%;width:0}}
+.task-card.passed{border-color:var(--green);box-shadow:inset 0 1px 0 #9bdb4d,inset 0 0 40px rgba(108,203,58,.06),4px 4px 0 rgba(0,0,0,.3);position:relative;overflow:hidden}
+.task-card.passed.just-changed{animation:passFlash .8s ease-out}
+@keyframes passFlash{0%{background:rgba(108,203,58,.25);transform:scale(1.04)}100%{transform:scale(1)}}
+.task-card.failed{border-color:var(--red);animation:failGlow .8s ease-in-out infinite;box-shadow:inset 0 1px 0 #ff6b6b,inset 0 0 40px rgba(232,69,69,.06),4px 4px 0 rgba(0,0,0,.3)}
+@keyframes failGlow{0%,100%{outline:2px solid rgba(232,69,69,.1);outline-offset:0px}50%{outline:2px solid rgba(232,69,69,.4);outline-offset:2px}}
+.task-card.failed.just-changed{animation:failShake .5s ease-out}
+@keyframes failShake{0%,100%{transform:translateX(0)}10%{transform:translateX(-5px)}30%{transform:translateX(5px)}50%{transform:translateX(-3px)}70%{transform:translateX(3px)}}
+.task-card.pending{opacity:.85;border-color:#4dc9f6;animation:pendingGlow 3s ease-in-out infinite}.task-card.pending:hover{opacity:.95}
+.status-icon{position:absolute;top:6px;right:8px;font-size:14px;pointer-events:none;z-index:5}
+.task-card.running .status-icon{animation:wrenchSwing 1s ease-in-out infinite;color:var(--yellow);text-shadow:0 0 8px var(--yellow)}
+@keyframes gearSpin{100%{transform:rotate(360deg)}}
+.task-card.passed .status-icon{animation:starBounce 2s ease-in-out infinite;color:var(--yellow);text-shadow:0 0 10px var(--yellow)}
+@keyframes starBounce{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.2)}}
+.task-card.failed .status-icon{animation:lightningFlash 3s infinite;color:var(--red);text-shadow:0 0 8px var(--red)}
+@keyframes lightningFlash{0%,85%,90%,95%,100%{opacity:.3}87%{opacity:1}92%{opacity:.9}}
+.task-card.pending .status-icon{animation:zzz 2.5s ease-in-out infinite;color:#fff;font-size:16px;font-family:var(--pixel);text-shadow:0 0 12px #4dc9f6,0 0 24px #4dc9f6,0 0 36px rgba(77,201,246,.5)}
+@keyframes zzz{0%,100%{opacity:.2;transform:translateY(0) scale(.8)}50%{opacity:.6;transform:translateY(-8px) scale(1)}}
+
+/* === 头像 === */
+.avatar-row{display:flex;align-items:flex-end;gap:8px;margin-bottom:10px}
+.pixel-avatar{width:128px;height:128px;image-rendering:pixelated;border:3px solid var(--border);background:#0d0d20;object-fit:contain;box-shadow:inset 0 0 0 1px var(--border-hi),2px 2px 0 rgba(0,0,0,.4)}
+.pixel-pc{width:48px;height:48px;image-rendering:pixelated}
+.task-card.running .pixel-avatar{animation:avatarBounce .6s infinite;border-color:var(--yellow)}
+@keyframes avatarBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+.task-card.passed .pixel-avatar{border-color:var(--green)}
+.task-card.failed .pixel-avatar{border-color:var(--red);animation:avatarShake .3s infinite}
+@keyframes avatarShake{0%,100%{transform:translateX(0)}50%{transform:translateX(-1px)}}
+.task-card.running .pixel-pc{animation:pcGlow 1.5s ease-in-out infinite}
+@keyframes pcGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.5)}}
+
+/* === 文字 === */
+.task-id{font-size:11px;color:var(--dim);margin-bottom:4px;text-shadow:1px 1px 0 #000}
+.task-name{font-size:13px;margin-bottom:8px;line-height:1.6;word-break:break-all;text-shadow:1px 1px 0 #000}
+.task-status{display:inline-block;font-size:10px;padding:3px 8px;border:2px solid;box-shadow:2px 2px 0 rgba(0,0,0,.3)}
+.task-status.pending{color:var(--dim);border-color:var(--dim)}
+.task-status.running{color:#ffe066;border-color:var(--yellow);background:rgba(245,197,66,.1);animation:statusPulse 1.5s infinite;text-shadow:0 0 6px var(--yellow)}
+@keyframes statusPulse{50%{background:rgba(245,197,66,.2)}}
+.task-status.passed{color:#9bdb4d;border-color:var(--green);background:rgba(108,203,58,.1);text-shadow:0 0 6px var(--green)}
+.task-status.failed{color:#ff6b6b;border-color:var(--red);background:rgba(232,69,69,.1);text-shadow:0 0 6px var(--red)}
+.task-error{margin-top:8px;font-size:10px;color:var(--dim);background:rgba(200,200,200,.05);padding:4px 6px;border-left:3px solid var(--dim);max-height:60px;overflow-y:auto;word-break:break-all;text-align:left;width:100%;font-family:var(--pixel);text-shadow:1px 1px 0 #000;white-space:pre-wrap}
+.task-error .el-pass{color:var(--green)}
+.task-error .el-manual{color:var(--yellow)}
+.task-error .el-fail{color:var(--red)}
+.task-time{font-size:9px;color:var(--dim);margin-top:4px;text-shadow:1px 1px 0 #000}
+
+/* === Gura 扩展 === */
+.gura-bar{display:flex;align-items:center;gap:12px;font-size:11px;padding:4px 20px;background:rgba(42,26,10,.6);border-left:4px solid var(--border);border-right:4px solid var(--border);position:relative;z-index:10}
+.gura-phase{padding:2px 8px;border:2px solid;font-size:10px;text-transform:uppercase}
+.gura-phase.idle{color:var(--dim);border-color:var(--dim)}
+.gura-phase.developing{color:var(--yellow);border-color:var(--yellow);animation:statusPulse 1.5s infinite}
+.gura-phase.validating{color:var(--cyan);border-color:var(--cyan);animation:statusPulse 1.5s infinite}
+.gura-phase.done{color:var(--green);border-color:var(--green);animation:doneShimmer 2s ease-in-out infinite}
+@keyframes doneShimmer{0%,100%{text-shadow:0 0 4px var(--green)}50%{text-shadow:0 0 12px var(--green),0 0 20px rgba(108,203,58,.4)}}
+.done-star{display:inline-block;color:#ffe066;animation:starSpin 2s ease-in-out infinite;text-shadow:0 0 8px #ffe066,0 0 16px rgba(255,224,102,.5)}
+@keyframes starSpin{0%{transform:rotate(0deg) scale(1)}25%{transform:rotate(15deg) scale(1.3)}50%{transform:rotate(0deg) scale(1)}75%{transform:rotate(-15deg) scale(1.3)}100%{transform:rotate(0deg) scale(1)}}
+.gura-phase.final_validation{color:#ff88cc;border-color:#ff88cc;animation:statusPulse 1.5s infinite}
+.gura-iter{color:var(--dim)}.gura-story{color:var(--yellow)}.gura-time{color:var(--dim)}
+.ac-list{margin-top:6px;text-align:left;width:100%;font-size:10px;line-height:1.8}
+.ac-item{color:var(--dim);text-shadow:1px 1px 0 #000;padding:1px 0}
+.ac-item::before{content:'☐ ';color:var(--dim)}
+.task-card.passed .ac-item::before{content:'☑ ';color:var(--green)}
+.task-notes{margin-top:6px;font-size:10px;color:var(--dim);background:rgba(200,200,200,.05);padding:4px 6px;border-left:3px solid var(--dim);text-align:left;width:100%;max-height:50px;overflow-y:auto;text-shadow:1px 1px 0 #000;white-space:pre-wrap}
+.task-notes .el-pass{color:var(--green)}
+.task-notes .el-manual{color:var(--yellow)}
+.task-notes .el-fail{color:var(--red)}
+.task-retry{font-size:9px;color:var(--dim);margin-top:3px}
+.task-card.blocked{border-color:#888;opacity:.35;filter:grayscale(.5)}
+.task-card.blocked .status-icon{color:#888;animation:statusPulse 3s infinite}
+.progress-log-content{font-size:10px;white-space:pre-wrap;word-break:break-all;color:var(--text);text-shadow:1px 1px 0 #000;line-height:1.6}
+.open-project-btn{font-family:var(--pixel);font-size:11px;padding:8px 16px;border:3px solid var(--dim);background:none;color:var(--dim);cursor:not-allowed;text-shadow:1px 1px 0 #000;box-shadow:3px 3px 0 rgba(0,0,0,.3);display:inline-block;transition:all .3s;opacity:.4}
+.open-project-btn.ready{border-color:var(--green);color:var(--green);background:rgba(108,203,58,.1);cursor:pointer;opacity:1;animation:projectBtnGlow 2s ease-in-out infinite;position:relative;overflow:hidden}
+.open-project-btn.ready .folder-icon{display:inline-block;animation:folderBounce 1.5s ease-in-out infinite}
+@keyframes folderBounce{0%,100%{transform:translateY(0) rotate(0deg)}30%{transform:translateY(-3px) rotate(-5deg)}60%{transform:translateY(0) rotate(3deg)}}
+.open-project-btn.ready::before{content:'★';position:absolute;font-size:10px;color:#ffe066;animation:btnStarRise 2s ease-out infinite;text-shadow:0 0 6px #ffe066;pointer-events:none;left:50%;bottom:0}
+.open-project-btn.ready::after{content:'✦';position:absolute;font-size:8px;color:#ffe066;animation:btnStarRise 2s ease-out 0.7s infinite;text-shadow:0 0 4px #ffe066;pointer-events:none;left:30%;bottom:0;opacity:0}
+@keyframes btnStarRise{0%{opacity:1;transform:translateY(0)}50%{opacity:.8}100%{opacity:0;transform:translateY(-30px)}}
+.open-project-btn.ready:hover{background:rgba(108,203,58,.25);box-shadow:0 0 30px rgba(108,203,58,.4),0 0 50px rgba(255,224,102,.2)}
+.exec-bar{padding:10px 20px;text-align:center;border-top:3px solid var(--border);background:linear-gradient(180deg,#2a1a0a,#1a0a00)}
+.office-zone{text-align:center;padding:8px;font-family:var(--pixel)}
+.office-pc{font-size:28px;display:inline-block;animation:pcGlow 2s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(83,216,251,.6))}
+@keyframes pcGlow{0%,100%{filter:drop-shadow(0 0 6px rgba(83,216,251,.4));transform:scale(1)}50%{filter:drop-shadow(0 0 14px rgba(83,216,251,.8));transform:scale(1.05)}}
+.office-text{display:block;font-size:11px;color:var(--cyan);margin-top:4px;animation:officeFlicker 3s ease-in-out infinite;text-shadow:0 0 8px rgba(83,216,251,.5)}
+@keyframes officeFlicker{0%,100%{opacity:1;text-shadow:0 0 8px rgba(83,216,251,.5)}30%{opacity:.7;text-shadow:0 0 4px rgba(83,216,251,.3)}60%{opacity:1;text-shadow:0 0 12px rgba(83,216,251,.7)}85%{opacity:.8}}
+@keyframes projectBtnGlow{0%,100%{box-shadow:3px 3px 0 rgba(0,0,0,.3),0 0 8px rgba(108,203,58,.2),0 0 20px rgba(255,224,102,.1)}50%{box-shadow:3px 3px 0 rgba(0,0,0,.3),0 0 20px rgba(108,203,58,.4),0 0 40px rgba(255,224,102,.2)}}
+
+/* === Tab 切换 === */
+.tab-bar{display:flex;gap:0;position:relative;z-index:10;border-left:4px solid var(--border);border-right:4px solid var(--border);background:rgba(0,0,0,.7);backdrop-filter:blur(2px);box-shadow:inset 0 -1px 0 var(--border-hi);padding-bottom:24px}
+.tab-btn{flex:1;padding:8px 16px;font-family:var(--pixel);font-size:11px;background:rgba(0,0,0,.15);color:var(--dim);border:none;border-bottom:3px solid var(--border);cursor:pointer;text-shadow:1px 1px 0 #000;transition:all .3s;position:relative}
+.tab-btn .tab-ico{width:14px;height:14px;vertical-align:-3px;margin-right:6px;image-rendering:pixelated;opacity:.75;transition:opacity .25s,filter .25s}
+.tab-btn.active .tab-ico{opacity:1;filter:drop-shadow(1px 1px 0 rgba(0,0,0,.6))}
+.tab-btn.active{color:var(--yellow);background:rgba(245,197,66,.08);border-bottom:3px solid var(--yellow)}
+.tab-btn:hover:not(.active){color:var(--text);background:rgba(255,255,255,.04)}
+.tab-btn.has-update::after{content:'';position:absolute;top:6px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red);animation:tabPulse 1.2s ease-in-out infinite}
+@keyframes tabPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.3);opacity:.7}}
+/* tab内容由inline style控制 */
+
+/* === PRD 审核页 === */
+.prd-page{grid-template-columns:1fr 1fr;height:calc(100vh - 170px);position:relative;z-index:10}
+.prd-doc{padding:16px;overflow-y:auto;background:rgba(0,0,0,.7);border-right:3px solid var(--border);position:relative}
+.prd-history-btn{position:absolute;top:8px;right:8px;font-family:var(--pixel);font-size:10px;padding:4px 10px;border:2px solid var(--border);background:rgba(0,0,0,.6);color:var(--dim);cursor:pointer;z-index:6;transition:all .2s}
+.prd-history-btn:hover{border-color:var(--yellow);color:var(--yellow);background:rgba(245,197,66,.1)}
+.prd-history-modal{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:9000;display:none;align-items:center;justify-content:center;animation:prdFade .25s ease-out}
+.prd-history-modal.open{display:flex}
+.prd-history-box{width:min(720px,90vw);max-height:80vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#2a1f4e,#1a1130);border:3px solid var(--yellow);box-shadow:6px 6px 0 rgba(0,0,0,.5),0 0 30px rgba(245,197,66,.2)}
+.prd-history-hd{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--border)}
+.prd-history-hd b{font-family:var(--pixel);color:var(--yellow);font-size:13px;text-shadow:1px 1px 0 #000}
+.prd-history-hd .x{cursor:pointer;color:var(--dim);font-size:18px;background:none;border:none}
+.prd-history-hd .x:hover{color:var(--red)}
+.prd-history-list{overflow-y:auto;padding:8px;flex:1}
+.prd-history-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;margin:4px 0;background:rgba(0,0,0,.4);border:2px solid var(--border);font-size:11px;cursor:pointer;transition:all .15s}
+.prd-history-row:hover{border-color:var(--cyan);background:rgba(77,201,246,.08)}
+.prd-history-row .ts{color:var(--text);font-family:var(--pixel)}
+.prd-history-row .meta{color:var(--dim);font-size:10px}
+.prd-history-row .rollback{font-family:var(--pixel);font-size:10px;padding:4px 10px;border:2px solid var(--orange,#f08c3a);background:rgba(240,140,58,.1);color:var(--orange,#f08c3a);cursor:pointer}
+.prd-history-row .rollback:hover{background:rgba(240,140,58,.25)}
+.prd-history-empty{padding:30px;text-align:center;color:var(--dim);font-size:11px}
+
+/* === 执行历史模态 === */
+.runlog-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:9999}
+.runlog-modal.open{display:flex}
+.runlog-box{width:min(760px,92vw);max-height:82vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#1a2a2e,#0f1a1e);border:3px solid var(--cyan);box-shadow:6px 6px 0 rgba(0,0,0,.5),0 0 30px rgba(83,216,251,.25)}
+.runlog-hd{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--border);gap:8px}
+.runlog-hd b{font-family:var(--pixel);color:var(--cyan);font-size:13px;text-shadow:1px 1px 0 #000}
+.runlog-hd .hint{color:var(--dim);font-size:10px;margin-left:auto}
+.runlog-hd .x{cursor:pointer;color:var(--dim);font-size:18px;background:none;border:none}
+.runlog-hd .x:hover{color:var(--red,#ef4444)}
+.runlog-list{overflow-y:auto;padding:6px 8px;flex:1}
+.runlog-row{display:flex;align-items:flex-start;gap:10px;padding:7px 10px;margin:3px 0;background:rgba(0,0,0,.35);border-left:3px solid var(--border);font-size:11px;animation:logSlide .25s ease-out}
+.runlog-row.t-passed{border-left-color:#4ade80;background:rgba(74,222,128,.06)}
+.runlog-row.t-failed{border-left-color:#ef4444;background:rgba(239,68,68,.06)}
+.runlog-row.t-blocked{border-left-color:#b58400;background:rgba(200,168,78,.06)}
+.runlog-row.t-running{border-left-color:var(--cyan);background:rgba(83,216,251,.06)}
+.runlog-row.t-retry{border-left-color:#f97316;background:rgba(249,115,22,.06)}
+.runlog-row.t-launch{border-left-color:var(--yellow);background:rgba(245,197,66,.08)}
+.runlog-row.t-unlock{border-left-color:#f08c3a;background:rgba(240,140,58,.06)}
+.runlog-row.t-complete{border-left-color:#22c55e;background:rgba(34,197,94,.10)}
+.runlog-row .rl-ico{font-size:13px;min-width:22px;text-align:center}
+.runlog-row .rl-body{flex:1;min-width:0}
+.runlog-row .rl-line1{color:var(--text);font-family:var(--pixel);text-shadow:1px 1px 0 #000}
+.runlog-row .rl-line1 .sid{color:var(--yellow);margin-right:4px}
+.runlog-row .rl-line1 .stitle{color:#ccc}
+.runlog-row .rl-line1 .arrow{color:var(--dim);margin:0 4px}
+.runlog-row .rl-note{color:var(--dim);font-size:10px;margin-top:3px;white-space:pre-wrap;word-break:break-word;line-height:1.55}
+.runlog-row .rl-time{color:var(--dim);font-size:9px;min-width:64px;text-align:right;font-family:var(--pixel)}
+.runlog-empty{padding:40px 20px;text-align:center;color:var(--dim);font-size:11px;line-height:1.7}
+
+/* === CLI 管理模态（主界面常驻入口） === */
+.cli-modal{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:9500}
+.cli-modal.open{display:flex}
+.cli-box{width:min(720px,92vw);max-height:82vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#1b2a3e,#0c1a2a);border:3px solid var(--cyan);box-shadow:6px 6px 0 rgba(0,0,0,.5),0 0 30px rgba(83,216,251,.2)}
+.cli-hd{padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:2px solid var(--border)}
+.cli-hd b{font-family:var(--pixel);color:var(--cyan);font-size:13px;text-shadow:1px 1px 0 #000;flex:1}
+.cli-hd .x{cursor:pointer;color:var(--dim);font-size:18px;background:none;border:none}
+.cli-hd .x:hover{color:var(--red,#ef4444)}
+.cli-bar{display:flex;gap:8px;padding:10px 14px;border-bottom:1px solid rgba(107,76,42,.4)}
+.cli-bar .btn{font-family:var(--pixel);font-size:11px;padding:6px 12px;border:2px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);cursor:pointer;text-shadow:1px 1px 0 #000;transition:all .15s}
+.cli-bar .btn:hover{border-color:var(--yellow);color:var(--yellow);background:rgba(245,197,66,.1)}
+.cli-bar .btn.primary{border-color:var(--cyan);color:var(--cyan);background:rgba(83,216,251,.1)}
+.cli-bar .btn.primary:hover{background:rgba(83,216,251,.22);border-color:var(--cyan);color:var(--cyan)}
+.cli-bar .status{margin-left:auto;font-size:10px;color:var(--dim);line-height:2.2}
+.cli-bar .status .ok{color:#4ade80}
+.cli-bar .status .err{color:var(--red,#ef4444)}
+.cli-rows{overflow-y:auto;padding:8px;flex:1}
+.cli-empty-msg{padding:30px 16px;text-align:center;color:var(--dim);font-size:11px;line-height:1.8}
+.cli-row{display:flex;flex-direction:column;gap:5px;padding:10px 12px;margin:4px 0;background:rgba(0,0,0,.4);border:2px solid var(--border);font-size:11px;transition:all .15s}
+.cli-row.active{border-color:var(--yellow);background:rgba(245,197,66,.1);box-shadow:inset 0 0 0 1px rgba(245,197,66,.25)}
+.cli-row .hd{display:flex;align-items:center;gap:8px}
+.cli-row .name{font-family:var(--pixel);font-size:13px;color:var(--text);flex:1}
+.cli-row.active .name{color:var(--yellow)}
+.cli-row .src{font-family:var(--pixel);font-size:9px;padding:2px 6px;border:1px solid #4ade80;color:#4ade80;background:rgba(74,222,128,.08)}
+.cli-row .src.custom{border-color:#c084fc;color:#c084fc;background:rgba(168,85,247,.1)}
+.cli-row .path{color:var(--dim);font-size:10px;word-break:break-all}
+.cli-row .ver{color:#666;font-size:10px}
+.cli-row .acts{display:flex;gap:6px;margin-top:4px}
+.cli-row .acts button{font-family:var(--pixel);font-size:10px;padding:4px 9px;border:2px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);cursor:pointer;text-shadow:1px 1px 0 #000}
+.cli-row .acts .default-btn:hover{border-color:var(--cyan);color:var(--cyan);background:rgba(83,216,251,.1)}
+.cli-row .acts .remove-btn{border-color:var(--red,#ef4444);color:var(--red,#ef4444)}
+.cli-row .acts .remove-btn:hover{background:rgba(239,68,68,.15)}
+.cli-row .acts .default-tag{font-family:var(--pixel);font-size:10px;padding:4px 9px;border:2px solid var(--yellow);color:var(--yellow);background:rgba(245,197,66,.1)}
+.cli-row .acts .test-btn{border-color:var(--cyan);color:var(--cyan);background:rgba(83,216,251,.08)}
+.cli-row .acts .test-btn:hover{background:rgba(83,216,251,.22)}
+.cli-test-tag{font-family:var(--pixel);font-size:9px;padding:3px 8px;border:1px solid;display:inline-block;vertical-align:middle}
+.cli-test-tag.loading{border-color:#666;color:#aaa;background:rgba(255,255,255,.03);animation:cliTestPulse 1s ease-in-out infinite}
+.cli-test-tag.ok{border-color:#4ade80;color:#4ade80;background:rgba(74,222,128,.1)}
+.cli-test-tag.err{border-color:#ef4444;color:#fca5a5;background:rgba(239,68,68,.1)}
+@keyframes cliTestPulse{0%,100%{opacity:.7}50%{opacity:1}}
+
+/* 添加 CLI 模态 */
+.cli-add-modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:9700}
+.cli-add-modal.open{display:flex}
+.cli-add-box{width:480px;background:#1a1a2e;border:3px solid var(--yellow);box-shadow:6px 6px 0 rgba(0,0,0,.5);padding:22px}
+.cli-add-box h3{font-family:var(--pixel);color:var(--yellow);font-size:14px;margin-bottom:14px;text-shadow:1px 1px 0 #000}
+.cli-add-box label{display:block;margin:10px 0 4px;font-family:var(--pixel);font-size:10px;color:var(--dim)}
+.cli-add-box input,.cli-add-box textarea{width:100%;padding:6px 9px;background:#0f0f1e;color:var(--text);border:2px solid var(--border);font-family:var(--pixel);font-size:11px}
+.cli-add-box input:focus,.cli-add-box textarea:focus{border-color:var(--yellow);outline:none}
+.cli-add-box .row{display:flex;gap:6px}
+.cli-add-box .row input{flex:1}
+.cli-add-box .row button{font-family:var(--pixel);font-size:11px;padding:6px 12px;border:2px solid var(--cyan);background:rgba(83,216,251,.08);color:var(--cyan);cursor:pointer;white-space:nowrap;text-shadow:1px 1px 0 #000}
+.cli-add-box .row button:hover{background:rgba(83,216,251,.22)}
+.cli-add-box .hint{font-family:var(--pixel);font-size:10px;color:#666;margin-top:4px;line-height:1.7}
+.cli-add-box .hint code{background:rgba(200,168,78,.1);padding:1px 4px;color:var(--yellow)}
+.cli-add-box .actions{display:flex;gap:8px;margin-top:16px}
+.cli-add-box .actions button{flex:1;font-family:var(--pixel);font-size:12px;padding:8px;border:2px solid var(--border);background:rgba(0,0,0,.3);color:var(--text);cursor:pointer;text-shadow:1px 1px 0 #000}
+.cli-add-box .actions .save-btn{border-color:#4ade80;color:#4ade80;background:rgba(74,222,128,.1)}
+.cli-add-box .actions .save-btn:hover{background:rgba(74,222,128,.22)}
+.cli-add-box .actions .cancel-btn:hover{border-color:var(--red,#ef4444);color:var(--red,#ef4444)}
+.log-title-btn{font-family:var(--pixel);font-size:10px;padding:3px 8px;background:rgba(83,216,251,.1);border:1px solid var(--cyan);color:var(--cyan);cursor:pointer;text-shadow:1px 1px 0 #000}
+.log-title-btn:hover{background:rgba(83,216,251,.25)}
+.log-title-flex{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;color:var(--yellow);border-bottom:3px solid var(--border);text-shadow:1px 1px 0 #000;box-shadow:inset 0 -1px 0 var(--border-hi);font-size:13px}
+.log-title-flex > span:first-child{flex:1}
+/* 内容更新过渡：淡入新内容，肉眼丝滑 */
+.prd-doc.fade-in,.prd-stories.fade-in{animation:prdFade .35s ease-out}
+@keyframes prdFade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.story-card{animation:cardEnter .4s ease-out backwards}
+.story-card:nth-child(1){animation-delay:.02s}.story-card:nth-child(2){animation-delay:.06s}
+.story-card:nth-child(3){animation-delay:.10s}.story-card:nth-child(4){animation-delay:.14s}
+.story-card:nth-child(5){animation-delay:.18s}.story-card:nth-child(6){animation-delay:.22s}
+.story-card:nth-child(7){animation-delay:.26s}.story-card:nth-child(8){animation-delay:.30s}
+@keyframes cardEnter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+.prd-doc h1,.prd-doc h2,.prd-doc h3{color:var(--yellow);margin:12px 0 6px;text-shadow:1px 1px 0 #000}
+.prd-doc h1{font-size:16px}.prd-doc h2{font-size:14px}.prd-doc h3{font-size:12px}
+.prd-doc p,.prd-doc li{font-size:11px;line-height:1.8;margin:4px 0}
+.prd-doc ul,.prd-doc ol{padding-left:16px}
+.prd-doc code{background:rgba(200,168,78,.1);padding:1px 4px;color:var(--cyan)}
+.prd-doc pre{background:rgba(0,0,0,.3);padding:8px;margin:8px 0;overflow-x:auto;border:2px solid var(--border)}
+.prd-doc pre code{background:none;padding:0}
+.prd-doc table{border-collapse:collapse;width:100%;margin:8px 0;font-size:10px}
+.prd-doc th,.prd-doc td{border:1px solid var(--border);padding:4px 8px;text-align:left}
+.prd-doc th{background:rgba(200,168,78,.1);color:var(--yellow)}
+.prd-doc blockquote{border-left:3px solid var(--yellow);padding-left:10px;color:var(--dim);margin:8px 0}
+.prd-stories{padding:16px;overflow-y:auto;background:rgba(0,0,0,.7)}
+.story-card{background:linear-gradient(180deg,rgba(58,42,94,.9),rgba(42,31,78,.9));border:3px solid var(--border);padding:12px;margin-bottom:10px;box-shadow:inset 0 1px 0 var(--border-hi),3px 3px 0 rgba(0,0,0,.3)}
+.story-card.confirmed{border-color:var(--green)}
+.story-card.s-running{border-color:var(--yellow);animation:runGlow 2s ease-in-out infinite}
+.story-card.s-running .story-status-icon{color:var(--yellow);animation:wrenchSwing 1s ease-in-out infinite;text-shadow:0 0 8px var(--yellow)}
+@keyframes wrenchSwing{0%,100%{transform:rotate(0deg)}25%{transform:rotate(20deg)}75%{transform:rotate(-20deg)}}
+.story-card.s-passed{border-color:var(--green);position:relative;overflow:hidden}
+.story-card.s-passed .story-status-icon{color:var(--yellow);animation:starBounce 2s ease-in-out infinite;text-shadow:0 0 10px var(--yellow)}
+.story-card.s-failed{border-color:var(--red);animation:failGlow .8s ease-in-out infinite}
+.story-card.s-failed .story-status-icon{color:var(--red);animation:lightningFlash 3s infinite;text-shadow:0 0 8px var(--red)}
+.story-card.s-blocked{border-color:#888;opacity:.35;filter:grayscale(.5)}
+.story-card.s-blocked .story-status-icon{color:#888;animation:statusPulse 3s infinite}
+.story-card.s-pending{opacity:.85;border-color:#4dc9f6;animation:pendingGlow 3s ease-in-out infinite}
+.story-card.s-pending .story-status-icon{color:#fff;font-family:var(--pixel);animation:zzz 2.5s ease-in-out infinite;text-shadow:0 0 12px #4dc9f6,0 0 24px #4dc9f6,0 0 36px rgba(77,201,246,.5)}
+.story-status-bar.pending{color:#4dc9f6;border-color:#4dc9f6}
+.story-card{position:relative}
+.story-status-icon{font-size:14px;margin-right:4px;vertical-align:middle;display:inline-block}
+.s-running .story-status-icon{animation:wrenchSwing 1s ease-in-out infinite}
+.s-passed .story-status-icon{animation:starBounce 2s ease-in-out infinite}
+.s-failed .story-status-icon{animation:lightningFlash 3s infinite}
+.launch-btn.launched{border-color:var(--yellow) !important;color:var(--yellow) !important;background:rgba(245,197,66,.1) !important;animation:bulbGlow 2s ease-in-out infinite !important;cursor:default !important}
+@keyframes bulbGlow{0%,100%{text-shadow:0 0 6px var(--yellow);box-shadow:0 0 10px rgba(245,197,66,.15)}50%{text-shadow:0 0 14px var(--yellow),0 0 20px rgba(245,197,66,.3);box-shadow:0 0 20px rgba(245,197,66,.3)}}
+.story-status-bar{font-size:10px;margin-top:6px;padding:2px 6px;display:inline-block;border:2px solid;box-shadow:2px 2px 0 rgba(0,0,0,.3)}
+.story-status-bar.running{color:var(--yellow);border-color:var(--yellow);background:rgba(245,197,66,.1);animation:statusPulse 1.5s infinite}
+.story-status-bar.passed{color:var(--green);border-color:var(--green);background:rgba(108,203,58,.1)}
+.story-status-bar.failed{color:var(--red);border-color:var(--red);background:rgba(232,69,69,.1)}
+.story-status-bar.blocked{color:#888;border-color:#888}
+.story-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.story-id{font-size:14px;color:var(--cyan);text-shadow:1px 1px 0 #000}
+.story-title{font-size:12px;color:var(--text);margin-bottom:6px;text-shadow:1px 1px 0 #000}
+.story-desc{font-size:11px;color:var(--dim);margin-bottom:8px;line-height:1.6}
+.story-ac{font-size:10px;color:var(--dim);line-height:1.8}
+.story-ac-item::before{content:'☐ '}
+.story-card.confirmed .story-ac-item::before{content:'☑ ';color:var(--green)}
+.confirm-btn{font-family:var(--pixel);font-size:11px;padding:4px 10px;border:2px solid var(--dim);background:none;color:var(--dim);cursor:pointer;text-shadow:1px 1px 0 #000}
+.confirm-btn:hover{border-color:var(--green);color:var(--green)}
+.confirm-btn.confirmed{border-color:var(--green);color:var(--green);background:rgba(108,203,58,.1)}
+.launch-bar{padding:12px 20px;text-align:center;border-top:3px solid var(--border);background:linear-gradient(180deg,#2a1a0a,#1a0a00);position:fixed;bottom:52px;left:0;right:0;z-index:30}
+.toolbar{position:fixed;bottom:0;left:0;right:0;z-index:25;height:52px;background:linear-gradient(180deg,#5a3a1a,#3a2210);border-top:3px solid #8b6914;display:flex;align-items:center;padding:0 20px;box-shadow:0 -2px 10px rgba(0,0,0,.5)}
+.tb-stats{display:flex;align-items:center;gap:20px;margin-right:auto;font-size:11px;font-family:var(--pixel);text-shadow:1px 1px 0 #000}
+.tb-stat{display:flex;align-items:center;gap:5px}
+.tb-sep{width:1px;height:24px;background:rgba(139,105,20,.5);margin:0 2px}
+.tb-stat-bar{width:60px;height:8px;background:rgba(0,0,0,.4);border:1px solid rgba(107,76,42,.6);border-radius:2px;overflow:hidden;position:relative}
+.tb-stat-fill{height:100%;border-radius:1px;transition:width 1s ease}
+.tb-stat-fill.hp{background:linear-gradient(90deg,#e84545,#ff6b6b);box-shadow:0 0 4px rgba(232,69,69,.4)}
+.tb-stat-fill.mood{background:linear-gradient(90deg,#f5c542,#ffe066);box-shadow:0 0 4px rgba(245,197,66,.4)}
+.tb-stat-label{color:var(--dim);font-size:10px}
+.tb-stat-val{color:var(--text);min-width:20px;text-align:right}
+.tb-name{color:#ffe066;font-size:12px;text-shadow:0 0 6px rgba(255,224,102,.3)}
+.tb-lv{color:var(--cyan);font-size:11px;text-shadow:0 0 6px rgba(83,216,251,.3)}
+.tb-heart{display:inline-block;color:#e84545;font-size:14px;animation:heartBeat 1.2s ease-in-out infinite;text-shadow:0 0 6px rgba(232,69,69,.5)}
+@keyframes heartBeat{0%,100%{transform:scale(1)}15%{transform:scale(1.25)}30%{transform:scale(1)}45%{transform:scale(1.15)}60%{transform:scale(1)}}
+.tb-mood-icon{display:inline-block;font-size:13px;animation:moodBounce 2s ease-in-out infinite}
+@keyframes moodBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.tb-gold-icon{display:inline-block;width:14px;height:14px;background:radial-gradient(circle at 40% 35%,#ffe066,#c8a84e,#8b6914);border-radius:50%;border:1px solid #8b6914;box-shadow:0 0 6px rgba(255,224,102,.4);animation:coinSpin 3s linear infinite;position:relative}
+.tb-gold-icon::after{content:'G';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;font-family:var(--pixel);color:#5a3a1a;font-weight:bold}
+@keyframes coinSpin{0%,100%{transform:scaleX(1)}25%{transform:scaleX(.2)}50%{transform:scaleX(1)}75%{transform:scaleX(.2)}}
+.tb-gold-val{color:#ffe066;text-shadow:0 0 6px rgba(255,224,102,.3)}
+.tb-clock{display:inline-block;width:16px;height:16px;border:2px solid var(--cyan);border-radius:50%;position:relative;box-shadow:0 0 4px rgba(83,216,251,.3)}
+.tb-clock::before{content:'';position:absolute;width:1px;height:5px;background:var(--cyan);top:2px;left:50%;transform-origin:bottom center;transform:translateX(-50%);animation:clockHand 60s linear infinite}
+.tb-clock::after{content:'';position:absolute;width:1px;height:4px;background:var(--text);top:3px;left:50%;transform-origin:bottom center;transform:translateX(-50%);animation:clockHand 3600s linear infinite}
+@keyframes clockHand{from{transform:translateX(-50%) rotate(0deg)}to{transform:translateX(-50%) rotate(360deg)}}
+.tb-time-val{color:var(--cyan);text-shadow:0 0 6px rgba(83,216,251,.3)}
+.tb-slots{display:flex;align-items:center;gap:6px;margin-left:16px}
+.toolbar-slot{width:32px;height:32px;background:rgba(0,0,0,.35);border:2px solid #6b4c2a;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;position:relative;box-shadow:inset 0 1px 0 rgba(200,168,78,.15);transition:all .3s}
+.toolbar-slot:hover{border-color:#c8a84e;background:rgba(200,168,78,.12);transform:translateY(-2px)}
+.toolbar-slot .tool-item{animation:toolBob 3s ease-in-out infinite;display:inline-block}
+@keyframes toolBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+.toolbar-slot:nth-child(odd) .tool-item{animation-delay:-.5s}
+.toolbar-slot:nth-child(3n) .tool-item{animation-delay:-1s}
+.toolbar-slot.active{border-color:#ffe066;background:rgba(255,224,102,.15);box-shadow:inset 0 1px 0 rgba(255,224,102,.3),0 0 8px rgba(255,224,102,.2)}
+.launch-btn{font-family:var(--pixel);font-size:13px;padding:8px 24px;border:3px solid var(--green);background:rgba(108,203,58,.15);color:var(--green);cursor:pointer;text-shadow:1px 1px 0 #000;box-shadow:3px 3px 0 rgba(0,0,0,.3);transition:all .3s}
+.launch-btn:hover{background:rgba(108,203,58,.3);box-shadow:0 0 15px rgba(108,203,58,.2)}
+.launch-btn:disabled{border-color:var(--dim);color:var(--dim);background:none;cursor:not-allowed;box-shadow:none}
+.ctrl-btn{font-family:var(--pixel);font-size:11px;padding:6px 14px;border:2px solid var(--cyan);background:rgba(83,216,251,.1);color:var(--cyan);cursor:pointer;text-shadow:1px 1px 0 #000;box-shadow:2px 2px 0 rgba(0,0,0,.3);margin-left:8px;transition:all .3s}
+.ctrl-btn:hover{background:rgba(83,216,251,.25)}
+.ctrl-btn.skip-btn{border-color:var(--yellow);color:var(--yellow);background:rgba(245,197,66,.1)}
+.ctrl-btn.skip-btn:hover{background:rgba(245,197,66,.25)}
+.ctrl-btn.paused{border-color:var(--green);color:var(--green);background:rgba(108,203,58,.1);animation:statusPulse 1.5s infinite}
+.prd-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--dim);font-size:10px;text-shadow:1px 1px 0 #000}
+
+/* === 新手引导空态卡（无 PRD 时占位） === */
+.onboard-card{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;padding:28px 22px;text-align:center;color:var(--text);animation:onboardPop .4s ease-out}
+@keyframes onboardPop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.onboard-card .oc-sign{width:56px;height:56px;margin-bottom:12px;filter:drop-shadow(2px 3px 0 rgba(0,0,0,.7));animation:ocBob 1.8s ease-in-out infinite;image-rendering:pixelated}
+@keyframes ocBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+.onboard-card .oc-bubble-inline{display:inline-block;width:18px;height:16px;vertical-align:-3px;margin:0 2px;image-rendering:pixelated;filter:drop-shadow(1px 1px 0 rgba(0,0,0,.6))}
+.onboard-card .oc-title{font-size:14px;color:var(--yellow);text-shadow:1px 1px 0 #000;margin-bottom:6px;line-height:1.5}
+.onboard-card .oc-title b{color:#ffd166}
+.onboard-card .oc-sub{font-size:10px;color:var(--dim);line-height:1.7;margin-bottom:14px;max-width:260px}
+.onboard-card .oc-arrow{position:absolute;right:18px;bottom:74px;font-size:28px;color:#ffd166;text-shadow:2px 2px 0 #000;animation:ocArrowFloat 1.6s ease-in-out infinite;pointer-events:none}
+@keyframes ocArrowFloat{0%,100%{transform:translate(0,0)}50%{transform:translate(6px,6px)}}
+.onboard-chips{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;max-width:320px;margin-top:4px}
+.onboard-chip{font-family:var(--pixel);font-size:10px;padding:6px 11px;background:rgba(200,168,78,.1);border:2px solid var(--border);color:var(--yellow);cursor:pointer;text-shadow:1px 1px 0 #000;box-shadow:2px 2px 0 rgba(0,0,0,.35);transition:all .18s}
+.onboard-chip:hover{background:rgba(200,168,78,.25);border-color:var(--yellow);transform:translate(-1px,-1px);box-shadow:3px 3px 0 rgba(0,0,0,.5)}
+.onboard-chip:active{transform:translate(1px,1px);box-shadow:1px 1px 0 rgba(0,0,0,.3)}
+.onboard-chip::before{content:'▸ ';color:#ffd166}
+.onboard-mini{display:flex;align-items:center;justify-content:center;height:100%;padding:20px;color:var(--dim);font-size:10px;line-height:1.8;text-align:center;text-shadow:1px 1px 0 #000}
+.onboard-mini::after{content:''}
+.onboard-mini b{color:var(--yellow)}
+.sparkle{position:absolute;image-rendering:pixelated;animation:sparkleOut 1.2s ease-out forwards;pointer-events:none}
+@keyframes sparkleOut{0%{opacity:1;transform:scale(1) translateY(0)}100%{opacity:0;transform:scale(0) translateY(-50px)}}
+.pass-star{position:absolute;bottom:0;font-size:8px;color:#ffe066;pointer-events:none;animation:starRise var(--dur) ease-out forwards;text-shadow:0 0 6px #ffe066,0 0 12px rgba(255,224,102,.6)}
+@keyframes starRise{0%{opacity:1;transform:translateY(0) scale(1)}60%{opacity:.8}100%{opacity:0;transform:translateY(calc(-1 * var(--rise))) scale(.3)}}
+
+/* === 日志 === */
+.log-panel{background:linear-gradient(180deg,#3a2a1a,#2a1a0a);border-left:4px solid var(--border);display:flex;flex-direction:column;z-index:10;box-shadow:inset 1px 0 0 var(--border-hi);overflow:hidden}
+.log-title{padding:10px 14px;font-size:13px;color:var(--yellow);border-bottom:3px solid var(--border);text-shadow:1px 1px 0 #000;box-shadow:inset 0 -1px 0 var(--border-hi)}
+.log-list{flex:1;overflow-y:auto;padding:8px}
+.log-group-header{padding:6px 8px;font-size:11px;color:var(--cyan);cursor:pointer;border-bottom:1px solid rgba(107,76,42,.4);text-shadow:1px 1px 0 #000;display:flex;justify-content:space-between;align-items:center;transition:background .2s}
+.log-group-header:hover{background:rgba(83,216,251,.08)}
+.log-group-header .arrow{transition:transform .3s;display:inline-block;margin-right:4px}
+.log-group.open .log-group-header .arrow{transform:rotate(90deg)}
+.log-group-header .count{font-size:9px;color:var(--dim);background:rgba(200,168,78,.1);padding:1px 6px;border:1px solid rgba(107,76,42,.4)}
+.log-group-body{max-height:0;overflow:hidden;transition:max-height .4s ease}
+.log-group.open .log-group-body{max-height:5000px}
+.log-entry{padding:5px 6px;font-size:10px;line-height:1.6;border-bottom:1px solid rgba(107,76,42,.3);font-family:var(--pixel);text-shadow:1px 1px 0 #000}
+@keyframes logSlide{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}
+.log-entry .time{color:var(--dim);margin-right:6px}
+.log-entry:hover{background:rgba(200,168,78,.05)}
+.empty{display:flex;align-items:center;justify-content:center;height:60vh;color:var(--dim);font-size:11px;text-shadow:1px 1px 0 #000}
+.empty::after{content:'_';animation:cursor .6s step-end infinite}
+@keyframes cursor{50%{opacity:0}}
+::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:#1a1a2e}::-webkit-scrollbar-thumb{background:var(--border);border:1px solid var(--border-hi)}
+</style>
+</head>
+<body>
+<div class="sky" id="sky"></div><div class="sky sky-next" id="skyNext"></div>
+<div class="ground" id="ground"></div>
+
+<div class="settings-panel" id="settingsPanel">
+  <h3>⚙ 设置</h3>
+
+  <details class="setting-section" open>
+    <summary>🌤 天气</summary>
+    <div class="setting-row"><label>季节</label><select id="setSeason"><option value="spring">🌸 春</option><option value="summer">☀ 夏</option><option value="autumn">🍂 秋</option><option value="winter">❄ 冬</option></select></div>
+    <div class="setting-row"><label>天气</label><select id="setWeather"><option value="clear">晴天</option><option value="rain">小雨</option><option value="random">随机</option></select></div>
+    <div class="setting-row"><label>日夜</label><select id="setDayNight"><option value="auto">跟随系统</option><option value="day">白天</option><option value="night">夜晚</option></select></div>
+    <div class="setting-row"><label>自动换季</label><select id="setInterval"><option value="0">关闭</option><option value="60">每1小时</option><option value="120">每2小时</option><option value="180">每3小时</option><option value="240">每4小时</option></select></div>
+  </details>
+
+  <details class="setting-section">
+    <summary>🖥 界面</summary>
+    <div class="setting-row"><label>字体/缩放</label>
+      <div class="zoom-ctrl">
+        <button class="zoom-btn" id="zoomMinus" title="缩小">−</button>
+        <span class="zoom-val" id="zoomVal">100%</span>
+        <button class="zoom-btn" id="zoomPlus" title="放大">＋</button>
+        <button class="zoom-btn reset" id="zoomReset" title="恢复 100%">↺</button>
+      </div>
+    </div>
+    <div class="setting-hint">Cmd/Ctrl + 鼠标滚轮或使用上方按钮；范围 60%–160%</div>
+  </details>
+
+  <details class="setting-section">
+    <summary>📁 项目</summary>
+    <div class="setting-row col"><label>当前项目</label>
+      <code class="setting-path" id="curProjectPath" title="">—</code>
+    </div>
+    <div class="setting-row col">
+      <div class="setting-actions">
+        <button class="mini-btn" id="btnPickProject">切换项目…</button>
+        <button class="mini-btn" id="btnOpenProjectFolder">在 Finder 打开</button>
+      </div>
+    </div>
+    <div class="setting-row col"><label>最近打开</label>
+      <div class="recent-list" id="recentProjectList"></div>
+    </div>
+  </details>
+
+  <details class="setting-section">
+    <summary>ℹ 关于</summary>
+    <div class="setting-row col"><label>版本</label><span id="aboutVersion" class="setting-val">—</span></div>
+    <div class="setting-row col"><label>Electron / Node</label><span id="aboutRuntime" class="setting-val">—</span></div>
+    <div class="setting-row col"><label>配置目录</label>
+      <code class="setting-path" id="aboutHome" title="">—</code>
+    </div>
+    <div class="setting-row col">
+      <div class="setting-actions">
+        <button class="mini-btn" id="btnOpenGuraHome">打开 ~/.gura</button>
+        <button class="mini-btn" id="btnOpenConfig">打开 config.json</button>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div class="topbar">
+  <span class="logo">⬡ Gura Automated AI Coding Harness</span>
+  <span class="project-name" id="projectName">—</span>
+  <span class="progress-text" id="progressText">0/0</span>
+  <span class="conn off" id="connStatus">● OFFLINE</span>
+  <button class="settings-btn" id="cliBtn" title="CLI 管理（Cmd+Shift+C）">CLI</button>
+  <button class="settings-btn" id="sessionBtn" title="历史任务（Cmd+Shift+H）" onclick="openSessionHistory()">📂</button>
+  <button class="settings-btn" id="settingsBtn" title="天气设置">⚙</button>
+</div>
+<div class="progress-bar-wrap"><div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div></div>
+<div class="gura-bar" id="guraBar" style="display:none">
+  <span class="gura-phase idle" id="guraPhase">IDLE</span>
+  <span class="gura-iter" id="guraIter">迭代 0/50</span>
+  <span class="gura-story" id="guraStory"></span>
+  <span class="gura-time" id="guraTime"></span>
+</div>
+<div class="tab-bar">
+  <button class="tab-btn active" data-tab="prd" onclick="switchTab('prd')"><svg class="tab-ico" viewBox="0 0 12 12" shape-rendering="crispEdges"><path fill="#3d2000" d="M2 0h8v1H2zM1 1h1v10H1zM10 1h1v10h-1zM2 11h8v1H2z"/><path fill="#e8d2a0" d="M2 1h8v10H2z"/><path fill="#8c5a00" d="M3 3h6v1H3zM3 5h6v1H3zM3 7h4v1H3zM3 9h6v1H3z"/><path fill="#ffd166" d="M4 0h4v1H4z"/></svg>PRD 审核</button>
+  <button class="tab-btn" data-tab="exec" onclick="switchTab('exec')"><svg class="tab-ico" viewBox="0 0 12 12" shape-rendering="crispEdges"><path fill="#3d2000" d="M3 1h1v10H3zM4 2h1v1H4zM5 3h1v1H5zM6 4h1v1H6zM7 5h1v2H7zM6 7h1v1H6zM5 8h1v1H5zM4 9h1v1H4z"/><path fill="#ffd166" d="M4 3h1v6H4zM5 4h1v4H5zM6 5h1v2H6z"/></svg>执行面板</button>
+</div>
+
+<!-- PRD 审核页 -->
+<div id="tabPrd" style="display:grid;grid-template-columns:1fr 1fr;position:fixed;top:116px;bottom:52px;left:0;right:0;z-index:5">
+  <div class="prd-doc" id="prdDoc"></div>
+  <div class="prd-stories" id="prdStories"></div>
+</div>
+<div class="prd-history-modal" id="prdHistoryModal" onclick="if(event.target===this)closePrdHistory()">
+  <div class="prd-history-box">
+    <div class="prd-history-hd"><b>⟳ PRD 历史快照（最近 30 份）</b><button class="x" onclick="closePrdHistory()">×</button></div>
+    <div class="prd-history-list" id="prdHistoryList"><div class="prd-history-empty">加载中…</div></div>
+  </div>
+</div>
+
+<div class="runlog-modal" id="runLogModal" onclick="if(event.target===this)closeRunLog()">
+  <div class="runlog-box">
+    <div class="runlog-hd"><b>📜 执行历史</b><span class="hint">按时间倒序，最近 200 条</span><button class="x" onclick="closeRunLog()">×</button></div>
+    <div class="runlog-list" id="runLogList"><div class="runlog-empty">加载中…</div></div>
+  </div>
+</div>
+
+<!-- 历史任务模态 -->
+<div class="runlog-modal" id="sessionModal" onclick="if(event.target===this)closeSessionHistory()">
+  <div class="runlog-box" style="max-width:560px">
+    <div class="runlog-hd"><b>📂 历史任务</b><span class="hint">每次打开项目自动归档</span><button class="x" onclick="closeSessionHistory()">×</button></div>
+    <div class="runlog-list" id="sessionList"><div class="runlog-empty">加载中…</div></div>
+  </div>
+</div>
+
+<div class="cli-modal" id="cliManagerModal" onclick="if(event.target===this)closeCliManager()">
+  <div class="cli-box">
+    <div class="cli-hd"><b>🔧 AI Coding CLI 管理</b><button class="x" onclick="closeCliManager()">×</button></div>
+    <div class="cli-bar">
+      <button class="btn primary" onclick="cliRescan()">↻ 重新扫描</button>
+      <button class="btn" onclick="openCliAdd()">＋ 手动添加</button>
+      <div class="status" id="cliStatus">准备就绪</div>
+    </div>
+    <div class="cli-rows" id="cliRows"><div class="cli-empty-msg">加载中…</div></div>
+  </div>
+</div>
+
+<!-- 添加自定义 CLI 模态 -->
+<div class="cli-add-modal" id="cliAddModal" onclick="if(event.target===this)closeCliAdd()">
+  <div class="cli-add-box">
+    <h3>＋ 添加自定义 CLI</h3>
+    <label>显示名称</label>
+    <input id="clia_name" placeholder="例：我的 GPT Agent">
+    <label>可执行文件路径</label>
+    <div class="row">
+      <input id="clia_path" placeholder="/usr/local/bin/xxx">
+      <button id="clia_browse">浏览…</button>
+    </div>
+    <label>调用模板（一行一个参数，用 {prompt} 占位）</label>
+    <textarea id="clia_tpl" rows="4" placeholder="-p&#10;{prompt}"></textarea>
+    <div class="hint">
+      示例：<br>
+      · claude：<code>--print --dangerously-skip-permissions {prompt}</code><br>
+      · codex：<code>exec --dangerously-bypass-approvals-and-sandbox {prompt}</code><br>
+      · gemini：<code>-p {prompt}</code>
+    </div>
+    <div class="actions">
+      <button class="cancel-btn" onclick="closeCliAdd()">取消</button>
+      <button class="save-btn" onclick="saveCliAdd()">保存</button>
+    </div>
+  </div>
+</div>
+<div class="launch-bar" id="launchBar">
+  <select id="agentSelect" style="font-family:var(--pixel);font-size:11px;background:#1a1a2e;color:var(--text);border:2px solid var(--border);padding:4px 8px;margin-right:10px"><option value="claude">Claude</option><option value="kiro">Kiro</option><option value="codex">Codex</option></select>
+  <button class="ctrl-btn" id="confirmAllBtn" onclick="confirmAll()" style="border-color:var(--yellow);color:var(--yellow)">☑ 一键确认</button>
+  <button class="launch-btn" id="launchBtn" disabled onclick="launchGura()">▶ 全部确认后启动 Gura</button>
+  <button class="ctrl-btn" id="unlockBtn" style="display:none;border-color:var(--orange,#f08c3a);color:var(--orange,#f08c3a);margin-left:8px" onclick="unlockLaunch()" title="暂停引擎并回到 PRD 编辑态（已通过的任务会保留）">↶ 解锁编辑</button>
+  <button class="ctrl-btn" id="pauseBtn" style="display:none" onclick="togglePause()">⏸ 暂停</button>
+  <button class="ctrl-btn skip-btn" id="skipBtn" style="display:none" onclick="skipStory()">⏭ 跳过</button>
+</div>
+
+<!-- 星露谷工具栏 -->
+<div class="toolbar" id="toolbar">
+  <div class="tb-stats">
+    <span class="tb-name" id="tbName">Gura</span>
+    <span class="tb-lv" id="tbLv">Lv.1</span>
+    <div class="tb-sep"></div>
+    <div class="tb-stat"><span class="tb-heart">♥</span><div class="tb-stat-bar"><div class="tb-stat-fill hp" id="tbHp" style="width:100%"></div></div><span class="tb-stat-val" id="tbHpVal">100</span></div>
+    <div class="tb-stat"><span class="tb-mood-icon" id="tbMoodIcon">☺</span><div class="tb-stat-bar"><div class="tb-stat-fill mood" id="tbMood" style="width:80%"></div></div><span class="tb-stat-val" id="tbMoodVal">80</span></div>
+    <div class="tb-sep"></div>
+    <div class="tb-stat"><div class="tb-gold-icon"></div><span class="tb-gold-val" id="tbGold">0</span></div>
+    <div class="tb-sep"></div>
+    <div class="tb-stat"><div class="tb-clock"></div><span class="tb-time-val" id="tbTime">0d 0h 0m</span></div>
+  </div>
+  <div class="tb-slots">
+    <div class="toolbar-slot active"><span class="tool-item">⚔</span></div>
+    <div class="toolbar-slot"><span class="tool-item">⛏</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🪓</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🎣</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🌱</span></div>
+    <div class="toolbar-slot"><span class="tool-item">💎</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🍎</span></div>
+    <div class="toolbar-slot"><span class="tool-item">☕</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🧪</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🔑</span></div>
+    <div class="toolbar-slot"><span class="tool-item">📜</span></div>
+    <div class="toolbar-slot"><span class="tool-item">🛡</span></div>
+  </div>
+</div>
+
+<!-- 执行面板 -->
+<div id="tabExec" style="display:none;grid-template-columns:1fr 360px;grid-template-rows:1fr auto;position:fixed;top:116px;bottom:52px;left:0;right:0;z-index:5">
+  <div class="tasks-panel" id="tasksPanel"><div class="onboard-card" id="emptyState">
+    <svg class="oc-sign" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#3d2000" d="M4 1h8v1H4zM2 2h2v1H2zM12 2h2v1h-2zM1 3h1v2H1zM14 3h1v2h-1zM0 5h1v6H0zM15 5h1v6h-1zM1 11h1v2H1zM14 11h1v2h-1zM2 13h2v1H2zM12 13h2v1h-2zM4 14h8v1H4z"/><path fill="#ffd166" d="M4 2h8v1H4zM2 3h10v1H2zM2 4h12v1H2zM1 5h14v6H1zM2 11h12v1H2zM2 12h10v1H2zM4 13h8v1H4z"/><path fill="#ffe9a3" d="M5 2h3v1H5zM3 3h5v1H3zM2 4h4v1H2zM2 5h2v3H2z"/><path fill="#d48f1f" d="M12 11h2v1h-2zM11 12h2v1h-2z"/><path fill="#3d2000" d="M7 5h2v4H7zM7 10h2v1H7z"/></svg>
+    <div class="oc-title">还没有任务卡<br><b>右下角 <svg class="oc-bubble-inline" viewBox="0 0 14 12" shape-rendering="crispEdges"><path fill="#8c5a00" d="M2 0h10v1H2zM1 1h1v1H1zM12 1h1v1h-1zM0 2h1v5H0zM13 2h1v5h-1zM1 7h1v1H1zM12 7h1v1h-1zM2 8h3v1H2zM7 8h5v1H7zM4 9h1v1H4zM3 10h1v1H3zM2 11h1v1H2z"/><path fill="#ffd166" d="M2 1h10v1H2zM1 2h12v5H1zM2 7h10v1H2zM5 8h2v1H5zM3 9h1v1H3z"/><path fill="#3d2000" d="M3 4h2v1H3zM6 4h2v1H6zM9 4h2v1H9z"/></svg> 开始</b></div>
+    <div class="oc-sub">告诉 AI 你想做什么，它会陪你聊出 PRD，然后变成一排可执行的 user story。</div>
+    <div class="onboard-chips">
+      <button class="onboard-chip" onclick="guraStartFromExample('做一个待办清单 App，本地存储，支持分类和完成打勾')">做个待办清单</button>
+      <button class="onboard-chip" onclick="guraStartFromExample('搭一个极简博客网站，Markdown 写文章，纯静态部署')">搭个博客网站</button>
+      <button class="onboard-chip" onclick="guraStartFromExample('写一个 Markdown 编辑器，左边写右边预览，所见即所得')">Markdown 编辑器</button>
+      <button class="onboard-chip" onclick="guraStartFromExample('做一个番茄钟，支持工作/休息切换和统计图表')">番茄钟</button>
+    </div>
+    <div class="oc-arrow">↘</div>
+  </div><div class="office-zone" id="officeZone"><span class="office-pc">🖥</span><span class="office-text">办公区</span></div></div>
+  <div class="log-panel"><div class="log-title-flex"><span>▸ Progress Log</span><button class="log-title-btn" onclick="openRunLog()" title="任务执行历史（Cmd+Shift+L）">📜 执行历史</button></div><div class="log-list" id="logList"></div></div>
+  <div class="exec-bar" id="execBar" style="grid-column:1/-1"><button class="ctrl-btn" id="jumpToRunning" onclick="jumpToRunning()" style="margin-right:10px">▸ 跳转当前</button><button class="open-project-btn" id="openProjectBtn" onclick="openProject()"><span class="folder-icon">📂</span> 打开项目</button></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+// ========== 天气引擎 ==========
+const BG_MAP = {
+  spring:{day:'/backgrounds/spring-day.png',night:'/backgrounds/spring-night.png'},
+  summer:{day:'/backgrounds/summer-day.png',night:'/backgrounds/summer-night.png'},
+  autumn:{day:'/backgrounds/autumn-day.png',night:'/backgrounds/autumn-night.png'},
+  winter:{day:'/backgrounds/winter-day.png',night:'/backgrounds/winter-night.png'}
+};
+
+let wxParticles=[], curBg=null;
+
+function clearParticles(){wxParticles.forEach(p=>p.remove());wxParticles=[];}
+
+function isNight(mode){
+  if(mode==='day')return false;
+  if(mode==='night')return true;
+  const h=new Date().getHours();return h<6||h>=19;
+}
+
+function resolveWeather(w){return w==='random'?(['clear','rain'])[Math.floor(Math.random()*2)]:w;}
+
+function makePxCanvas(w,h){const cv=document.createElement('canvas');cv.width=w;cv.height=h;return cv;}
+function pxImg(cv,css){const img=document.createElement('img');img.src=cv.toDataURL();img.style.cssText=css+';image-rendering:pixelated';return img;}
+
+// === 设置背景图 ===
+function setBg(season,night){
+  const url=BG_MAP[season][night?'night':'day'];
+  if(url===curBg)return;
+  curBg=url;
+  const sky=document.getElementById('sky');
+  const skyNext=document.getElementById('skyNext');
+  // skyNext 先加载新背景（在底层）
+  skyNext.style.backgroundImage=`url(${url})`;
+  // sky（当前背景）淡出，露出底层新背景
+  sky.style.opacity='0';
+  setTimeout(()=>{
+    // 淡出完成后，sky 换成新背景并恢复不透明
+    sky.style.backgroundImage=`url(${url})`;
+    sky.style.transition='none';
+    sky.style.opacity='1';
+    // 强制 reflow 后恢复 transition
+    sky.offsetHeight;
+    sky.style.transition='opacity 1.8s ease-in-out';
+  },1800);
+}
+
+// === renderSky: 背景图+粒子（天气/日夜变时调用）===
+function renderSky(season,weather,dayNight){
+  const night=isNight(dayNight);
+  setBg(season,night);
+  clearParticles();
+
+  // 春：樱花瓣飘落 + 春夜萤火虫
+  if(season==='spring'){
+    const pc=['#ffaacc','#ff88aa','#ffccdd','#ffbbdd','#ff99bb','#ffc0cb'];
+    for(let i=0;i<(night?12:25);i++){
+      const p=document.createElement('div');p.className='wx-particle petal';
+      const c=pc[i%6];
+      p.style.cssText=`left:${Math.random()*100}%;background:${c};--c:${c};opacity:${night?.6:1};--dur:${6+Math.random()*10}s;--dx:${(Math.random()-.5)*120}px;animation-delay:${Math.random()*8}s`;
+      document.body.appendChild(p);wxParticles.push(p);
+    }
+    if(night){
+      for(let i=0;i<8;i++){
+        const f=document.createElement('div');f.className='wx-particle firefly';
+        f.style.cssText=`left:${Math.random()*100}%;top:${30+Math.random()*60}%;background:#aaff88;--c:#aaff88;--dur:${6+Math.random()*8}s;--dx:${(Math.random()-.5)*180}px;--dy:${(Math.random()-.5)*120}px;animation-delay:${Math.random()*6}s`;
+        document.body.appendChild(f);wxParticles.push(f);
+      }
+    }
+  }
+
+  // 夏：热浪 / 夏夜萤火虫群+流星
+  if(season==='summer'){
+    if(!night){
+      for(let i=0;i<6;i++){
+        const h=document.createElement('div');h.className='wx-particle shimmer';
+        h.style.cssText=`left:${Math.random()*80}%;top:${55+Math.random()*35}%;--dur:${3+Math.random()*4}s;animation-delay:${Math.random()*3}s`;
+        document.body.appendChild(h);wxParticles.push(h);
+      }
+    } else {
+      const fc=['#6ccb3a','#aaff44','#f5c542','#ffe066','#88ff66'];
+      for(let i=0;i<25;i++){
+        const f=document.createElement('div');f.className='wx-particle firefly';
+        const c=fc[i%5];
+        f.style.cssText=`left:${Math.random()*100}%;top:${15+Math.random()*75}%;background:${c};--c:${c};--dur:${4+Math.random()*10}s;--dx:${(Math.random()-.5)*220}px;--dy:${(Math.random()-.5)*160}px;animation-delay:${Math.random()*8}s`;
+        document.body.appendChild(f);wxParticles.push(f);
+      }
+      for(let i=0;i<3;i++){
+        const m=document.createElement('div');m.className='wx-particle meteor';
+        m.style.cssText=`left:${10+Math.random()*60}%;top:${5+Math.random()*20}%;--dur:${8+Math.random()*15}s;animation-delay:${Math.random()*12}s`;
+        document.body.appendChild(m);wxParticles.push(m);
+      }
+    }
+  }
+
+  // 秋：枫叶飘落
+  if(season==='autumn'){
+    const lc=['#cc5522','#dd7733','#ee9944','#bb4411','#cc6633','#aa3300','#dd5533'];
+    for(let i=0;i<(night?15:30);i++){
+      const l=document.createElement('div');l.className='wx-particle leaf';
+      const c=lc[i%7];
+      l.style.cssText=`left:${Math.random()*100}%;background:${c};--c:${c};opacity:${night?.7:1};--dur:${6+Math.random()*10}s;--dx:${(Math.random()-.5)*140}px;animation-delay:${Math.random()*8}s`;
+      document.body.appendChild(l);wxParticles.push(l);
+    }
+  }
+
+  // 冬：飘雪 + 冬夜极光
+  if(season==='winter'){
+    for(let i=0;i<(night?40:55);i++){
+      const s=document.createElement('div');s.className='wx-particle snow';
+      const sz=2+Math.random()*5;
+      s.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;background:${night?'rgba(200,210,255,.7)':'rgba(255,255,255,.85)'};--dur:${4+Math.random()*10}s;--dx:${(Math.random()-.5)*100}px;animation-delay:${Math.random()*8}s`;
+      document.body.appendChild(s);wxParticles.push(s);
+    }
+    if(night){
+      const ac=['rgba(80,220,120,.18)','rgba(100,160,255,.15)','rgba(160,100,255,.12)','rgba(80,255,180,.15)','rgba(120,200,255,.10)'];
+      for(let i=0;i<5;i++){
+        const a=document.createElement('div');a.className='wx-particle aurora';
+        a.style.cssText=`left:${i*20}%;top:${2+i*3}%;width:${200+Math.random()*300}px;background:linear-gradient(180deg,transparent,${ac[i]},transparent);--dur:${4+Math.random()*6}s;animation-delay:${i*1.2}s`;
+        document.body.appendChild(a);wxParticles.push(a);
+      }
+    }
+  }
+
+  // 雨天叠加
+  if(weather==='rain'){
+    for(let i=0;i<60;i++){
+      const r=document.createElement('div');r.className='wx-particle rain';
+      const h=12+Math.random()*24;
+      r.style.cssText=`left:${Math.random()*100}%;height:${h}px;--c:${night?'rgba(150,180,255,.5)':'rgba(100,150,200,.6)'};--dur:${0.3+Math.random()*0.5}s;animation-delay:${Math.random()*2}s`;
+      document.body.appendChild(r);wxParticles.push(r);
+    }
+  }
+}
+
+
+
+
+// ========== 设置面板 ==========
+const SEASONS=['spring','summer','autumn','winter'];
+let cfg={season:'summer',weather:'clear',dayNight:'auto',interval:0};
+function loadCfg(){try{Object.assign(cfg,JSON.parse(localStorage.getItem('pi-weather')));}catch{}}
+function saveCfg(){localStorage.setItem('pi-weather',JSON.stringify(cfg));}
+function applyWeather(){
+  const w=resolveWeather(cfg.weather);
+  renderSky(cfg.season,w,cfg.dayNight);
+  document.getElementById('setSeason').value=cfg.season;
+  document.getElementById('setWeather').value=cfg.weather;
+  document.getElementById('setDayNight').value=cfg.dayNight;
+  document.getElementById('setInterval').value=cfg.interval;
+}
+document.getElementById('settingsBtn').onclick=()=>document.getElementById('settingsPanel').classList.toggle('open');
+document.addEventListener('click',e=>{if(!e.target.closest('#settingsPanel')&&!e.target.closest('#settingsBtn'))document.getElementById('settingsPanel').classList.remove('open');});
+document.getElementById('setSeason').onchange=e=>{cfg.season=e.target.value;saveCfg();applyWeather();};
+document.getElementById('setWeather').onchange=e=>{cfg.weather=e.target.value;saveCfg();applyWeather();};
+document.getElementById('setDayNight').onchange=e=>{cfg.dayNight=e.target.value;saveCfg();applyWeather();};
+document.getElementById('setInterval').onchange=e=>{cfg.interval=parseInt(e.target.value);saveCfg();scheduleRotation();};
+let rotationTimer=null;
+function scheduleRotation(){if(rotationTimer)clearInterval(rotationTimer);if(!cfg.interval)return;rotationTimer=setInterval(()=>{cfg.season=SEASONS[Math.floor(Math.random()*4)];cfg.weather=Math.random()>.7?'rain':'clear';saveCfg();applyWeather();},cfg.interval*60*1000);}
+let lastNight=null;
+setInterval(()=>{if(cfg.dayNight!=='auto')return;const n=isNight('auto');if(n!==lastNight){lastNight=n;applyWeather();}},60000);
+loadCfg();applyWeather();scheduleRotation();
+
+// === 设置面板：缩放 / 项目 / 关于 ===
+(async function initSettingsExtras(){
+  if(!window.gura) return;
+  // 缩放
+  let zoom=await window.gura.getZoom()||1;
+  const zoomVal=$('#zoomVal'),zoomMinus=$('#zoomMinus'),zoomPlus=$('#zoomPlus'),zoomReset=$('#zoomReset');
+  function showZoom(){if(zoomVal)zoomVal.textContent=Math.round(zoom*100)+'%';}
+  showZoom();
+  async function setZoom(f){zoom=Math.max(0.6,Math.min(1.6,f));zoom=await window.gura.setZoom(zoom);showZoom();}
+  if(zoomMinus)zoomMinus.onclick=()=>setZoom(zoom-0.1);
+  if(zoomPlus)zoomPlus.onclick=()=>setZoom(zoom+0.1);
+  if(zoomReset)zoomReset.onclick=()=>setZoom(1);
+
+  // 关于 + 项目
+  try{
+    const info=await window.gura.appInfo();
+    const v=$('#aboutVersion'),rt=$('#aboutRuntime'),home=$('#aboutHome'),proj=$('#curProjectPath');
+    if(v)v.textContent='v'+(info.version||info.pkgVersion||'?');
+    if(rt)rt.textContent='Electron '+info.electronVersion+' / Node '+info.nodeVersion;
+    if(home){home.textContent=info.guraHome||'~/.gura';home.title=info.guraHome||'';}
+    if(proj){proj.textContent=info.currentProject||'未设置';proj.title=info.currentProject||'';}
+    // 打开目录按钮
+    const btnHome=$('#btnOpenGuraHome'),btnCfg=$('#btnOpenConfig'),btnFolder=$('#btnOpenProjectFolder');
+    if(btnHome)btnHome.onclick=()=>window.gura.openPath(info.guraHome);
+    if(btnCfg)btnCfg.onclick=()=>window.gura.showInFolder(info.configFile);
+    if(btnFolder&&info.currentProject)btnFolder.onclick=()=>window.gura.openPath(info.currentProject);
+  }catch{}
+
+  // 切换项目（复用 launcher 的 pickProject 或 dialog）
+  const btnPick=$('#btnPickProject');
+  if(btnPick){
+    btnPick.onclick=async()=>{
+      try{
+        const p=await window.gura.pickExecutable();// 复用文件选择；后续可改为目录选择
+        if(p)alert('项目切换需要重启 Gura 才能生效。\n选择的路径：'+p);
+      }catch{}
+    };
+  }
+
+  // 最近项目列表
+  try{
+    const info=await window.gura.appInfo();
+    if(info.recentFile){
+      const box=$('#recentProjectList');
+      if(box){
+        // recentFile 是 JSON 数组
+        const resp=await fetch('file://'+info.recentFile).catch(()=>null);
+        // Electron file:// 可能不行，留空即可
+        box.innerHTML='<span style="font-size:9px;color:#555">（重启后加载）</span>';
+      }
+    }
+  }catch{}
+})();
+
+// ========== 应用逻辑 ==========
+const AVATARS=[
+  {name:'Role001',src:'/avatars/芙莉莲.png'},{name:'Role002',src:'/avatars/Gawr Gura.png'},
+  {name:'Role003',src:'/avatars/星月枫.png'},{name:'Role004',src:'/avatars/星月铃.png'},
+  {name:'Role005',src:'/avatars/FGO-Saber.png'},{name:'Role006',src:'/avatars/FGO-尼禄.png'},
+  {name:'Role007',src:'/avatars/FGO-贞德.png'},{name:'Role008',src:'/avatars/FGO-摩根.png'},
+  {name:'Role009',src:'/avatars/FGO-妖精骑士崔斯坦.png'},{name:'Role010',src:'/avatars/FGO-美露莘.png'},
+  {name:'Role011',src:'/avatars/FGO-伽摩.png'},{name:'Role012',src:'/avatars/FGO-阿瓦隆女士.png'},
+  {name:'Role013',src:'/avatars/FGO-阿尔托莉雅·卡斯特.png'},{name:'Role014',src:'/avatars/木之本樱.png'},
+  {name:'Role015',src:'/avatars/小鸟游六花.png'},{name:'Role016',src:'/avatars/时崎狂三.png'},
+  {name:'Role017',src:'/avatars/未亡人雪女.png'},{name:'Role018',src:'/avatars/薇尔莉特.png'},
+];
+const STATUS_LABEL={pending:'PENDING',running:'RUNNING ▸',passed:'PASSED ✓',failed:'FAILED ✗',blocked:'BLOCKED 🚫'};
+const STATUS_ICON={pending:'Zzz',running:'🔧',passed:'⭐',failed:'⚡',blocked:'💀'};
+let prevStatuses={};
+
+const _pcCache={};
+function makePC(status){
+  if(_pcCache[status])return _pcCache[status];
+  const cv=document.createElement('canvas');cv.width=48;cv.height=48;
+  const ctx=cv.getContext('2d'),P=4;
+  const fill=(x,y,c)=>{ctx.fillStyle=c;ctx.fillRect(x*P,y*P,P,P);};
+  const frame='#6b4c2a',hi='#c8a84e';
+  const screen=status==='running'?'#1a3a1a':status==='passed'?'#1a3a2a':status==='failed'?'#3a1a1a':'#1a1a2a';
+  const glow=status==='running'?'#6ccb3a':status==='passed'?'#6ccb3a':status==='failed'?'#e84545':'#333355';
+  for(let x=1;x<11;x++){fill(x,0,frame);fill(x,7,frame);}
+  for(let y=1;y<7;y++){fill(0,y,frame);fill(11,y,frame);}
+  fill(1,0,hi);fill(2,0,hi);fill(1,1,hi);
+  for(let y=1;y<7;y++)for(let x=1;x<11;x++)fill(x,y,screen);
+  if(status==='running'){for(let x=2;x<7;x++)fill(x,2,glow);for(let x=2;x<5;x++)fill(x,4,glow);}
+  else if(status==='passed'){fill(4,2,glow);fill(5,3,glow);fill(6,3,glow);fill(7,4,glow);fill(8,3,glow);fill(9,2,glow);}
+  else if(status==='failed'){fill(3,2,glow);fill(4,3,glow);fill(5,4,glow);fill(7,2,glow);fill(6,3,glow);}
+  else{for(let x=3;x<8;x++)fill(x,3,'#333355');}
+  for(let x=4;x<8;x++)fill(x,8,frame);
+  for(let x=2;x<10;x++){fill(x,9,frame);fill(x,10,hi);}
+  return _pcCache[status]=cv.toDataURL();
+}
+
+function spawnSparkles(card,type){
+  const pal=type==='pass'?['#6ccb3a','#f5c542','#fff','#9bdb4d']:['#e84545','#ff6b6b','#ff9999'];
+  for(let i=0;i<(type==='pass'?20:10);i++){
+    const s=document.createElement('div');s.className='sparkle';
+    const sz=3+Math.random()*5;
+    s.style.cssText=`width:${sz}px;height:${sz}px;background:${pal[i%pal.length]};box-shadow:0 0 ${sz}px ${pal[i%pal.length]};left:${15+Math.random()*70}%;top:${10+Math.random()*50}%;animation-delay:${Math.random()*0.5}s;animation-duration:${0.8+Math.random()*0.8}s`;
+    card.appendChild(s);setTimeout(()=>s.remove(),2000);
+  }
+}
+
+function fmtElapsed(s){if(!s)return'';const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h}h${m}m`:`${m}m`;}
+
+function _buildCard(t,i,changedIds){
+  const av=AVATARS[i%AVATARS.length];
+  const st=t.blocked?'blocked':t.status;
+  const icon=t.blocked?'🚫':(STATUS_ICON[t.status]||'');
+  const changed=changedIds&&changedIds.has(t.id),isNew=!prevStatuses[t.id];
+  const cls=['task-card',st,changed?'just-changed':'',isNew?'enter':''].filter(Boolean).join(' ');
+  const acHtml=(t.acceptanceCriteria&&t.acceptanceCriteria.length)?`<div class="ac-list">${t.acceptanceCriteria.map(a=>`<div class="ac-item">${esc(a)}</div>`).join('')}</div>`:'';
+  const notesHtml=t.notes?`<div class="task-notes">${escErr(t.notes)}</div>`:'';
+  const retryHtml=t.retryCount?`<div class="task-retry">重试 ${t.retryCount}/5</div>`:'';
+  return `<div class="${cls}" data-id="${t.id}" style="${isNew?'animation-delay:'+i*0.1+'s':''}">
+    <span class="status-icon">${icon}</span>
+    ${st==='running'?'<div class="scan-line"></div><div class="load-bar"></div>':''}
+    <div class="avatar-row"><img class="pixel-avatar" src="${av.src}" width="128" height="128"><img class="pixel-pc" src="${makePC(t.status)}" width="48" height="48"></div>
+    <div class="task-id">${t.id} — ${av.name}</div>
+    <div class="task-name">${esc(t.name)}</div>
+    <span class="task-status ${st}">${t.blocked?'BLOCKED 🚫':(STATUS_LABEL[t.status]||t.status)}</span>
+    ${t.error?`<div class="task-error">${escErr(t.error)}</div>`:''}
+    ${notesHtml}${retryHtml}${acHtml}
+    ${t.startedAt?`<div class="task-time">${fmtTime(t.startedAt)}${t.finishedAt?' → '+fmtTime(t.finishedAt):''}</div>`:''}
+  </div>`;
+}
+
+function render(data){
+  if(!data.tasks)data.tasks=[];
+  console.log('render called, tasks:', data.tasks.length, 'project:', data.project);
+  document.getElementById('projectName').textContent=data.project||'—';
+  const total=data.tasks.length,passed=data.tasks.filter(t=>t.status==='passed').length,failed=data.tasks.filter(t=>t.status==='failed').length,blocked=data.tasks.filter(t=>t.blocked).length;
+  console.log('total:',total,'passed:',passed);
+  document.getElementById('progressText').textContent=`${passed}/${total}`;
+  document.getElementById('progressFill').style.width=total?((passed+failed+blocked)/total*100)+'%':'0%';
+
+  // Gura 状态栏
+  const r=data.gura;
+  if(r&&r.phase&&r.phase!=='idle'){
+    const bar=document.getElementById('guraBar');bar.style.display='flex';
+    const ph=document.getElementById('guraPhase');ph.textContent=r.phase.toUpperCase();ph.className='gura-phase '+r.phase;
+    const iterEl=document.getElementById('guraIter');
+    if(r.phase==='done'){iterEl.innerHTML='<span class="done-star">★</span> 完成';iterEl.classList.add('done');}
+    else{iterEl.classList.remove('done');iterEl.textContent=r.phase==='final_validation'?'◈ 整体验证中':`迭代 ${r.iteration}/${r.maxIterations}`;}
+    document.getElementById('guraStory').textContent=r.currentStory?`▸ ${r.currentStory}`:'';
+    document.getElementById('guraTime').textContent=r.startedAt?fmtElapsed(Math.floor((Date.now()-new Date(r.startedAt).getTime())/1000)):'';
+  } else {
+    document.getElementById('guraBar').style.display='none';
+  }
+
+  // 暂停/跳过按钮：执行中显示
+  const isRunning=r&&r.phase&&r.phase!=='idle'&&r.phase!=='done';
+  document.getElementById('pauseBtn').style.display=isRunning?'inline-block':'none';
+  document.getElementById('skipBtn').style.display=isRunning?'inline-block':'none';
+  if(r&&r.phase==='paused'){isPaused=true;document.getElementById('pauseBtn').textContent='▶ 恢复';document.getElementById('pauseBtn').classList.add('paused');}
+
+  const panel=document.getElementById('tasksPanel'),empty=document.getElementById('emptyState');
+  console.log('panel:',!!panel,'empty:',!!empty,'panel visible:',panel?.offsetParent!==null);
+  if(!total){empty.style.display='flex';panel.querySelector('.tasks-grid')?.remove();return;}
+  empty.style.display='none';
+  let grid=panel.querySelector('.tasks-grid');
+  if(!grid){grid=document.createElement('div');grid.className='tasks-grid';panel.appendChild(grid);}
+  const changedIds=new Set();
+  data.tasks.forEach(t=>{if(prevStatuses[t.id]!==t.status)changedIds.add(t.id);});
+
+  // 首次渲染或task数量变化时全量构建，否则差量更新
+  if(!grid.children.length||grid.children.length!==data.tasks.length){
+    const html=data.tasks.map((t,i)=>_buildCard(t,i,changedIds)).join('');
+    grid.innerHTML=html;
+  } else {
+    // 差量更新：只更新状态变化的卡片
+    data.tasks.forEach((t,i)=>{
+      if(!changedIds.has(t.id))return;
+      const card=grid.children[i];
+      if(!card)return;
+      const st=t.blocked?'blocked':t.status;
+      const icon=t.blocked?'🚫':(STATUS_ICON[t.status]||'');
+      // 更新class
+      card.className=['task-card',st,'just-changed'].join(' ');
+      // 更新状态图标
+      const iconEl=card.querySelector('.status-icon');
+      if(iconEl)iconEl.textContent=icon;
+      // 更新PC图标
+      const pcEl=card.querySelector('.pixel-pc');
+      if(pcEl)pcEl.src=makePC(t.status);
+      // 更新状态标签
+      const stEl=card.querySelector('.task-status');
+      if(stEl){stEl.className='task-status '+st;stEl.textContent=t.blocked?'BLOCKED 🚫':(STATUS_LABEL[t.status]||t.status);}
+      // 更新scan-line/load-bar
+      const hasScan=card.querySelector('.scan-line');
+      if(st==='running'&&!hasScan){card.insertAdjacentHTML('afterbegin','<div class="scan-line"></div><div class="load-bar"></div>');}
+      if(st!=='running'&&hasScan){card.querySelector('.scan-line')?.remove();card.querySelector('.load-bar')?.remove();}
+      // 更新notes
+      let notesEl=card.querySelector('.task-notes');
+      if(t.notes&&!notesEl){card.querySelector('.task-status').insertAdjacentHTML('afterend',`<div class="task-notes">${escErr(t.notes)}</div>`);}
+      else if(t.notes&&notesEl){notesEl.innerHTML=escErr(t.notes);}
+      else if(!t.notes&&notesEl){notesEl.remove();}
+      // 更新error
+      let errEl=card.querySelector('.task-error');
+      if(t.error&&!errEl){card.querySelector('.task-status').insertAdjacentHTML('afterend',`<div class="task-error">${escErr(t.error)}</div>`);}
+      else if(t.error&&errEl){errEl.innerHTML=escErr(t.error);}
+      else if(t.error&&errEl){errEl.innerHTML=esc(t.error);}
+      else if(!t.error&&errEl){errEl.remove();}
+    });
+  }
+
+  changedIds.forEach(id=>{
+    const task=data.tasks.find(t=>t.id===id),card=grid.querySelector(`[data-id="${id}"]`);
+    if(card&&task?.status==='passed')setTimeout(()=>spawnSparkles(card,'pass'),100);
+    if(card&&task?.status==='failed')setTimeout(()=>spawnSparkles(card,'fail'),100);
+  });
+  setTimeout(()=>grid.querySelectorAll('.just-changed').forEach(el=>el.classList.remove('just-changed')),800);
+  prevStatuses={};data.tasks.forEach(t=>prevStatuses[t.id]=t.status);
+
+  // 日志：按 story 分组折叠显示
+  const logList=document.getElementById('logList');
+  const gPhase=data.gura&&data.gura.phase;
+  const isActive=gPhase&&gPhase!=='idle'&&gPhase!=='done';
+  const logs=data.logs||[];
+  const curLogCount=logList.querySelectorAll('.log-entry').length;
+  if(logs.length!==curLogCount){
+    const storyRe=/迭代\s*\d+\s*[:：]\s*(?:开发|验证)\s+(S-\d+)/;
+    const ungrouped=[], groups=[];
+    let curGroup=null;
+    logs.forEach(l=>{
+      const m=(l.msg||'').match(storyRe);
+      if(m){
+        const sid=m[1];
+        if(!curGroup||curGroup.id!==sid){curGroup={id:sid,logs:[]};groups.push(curGroup);}
+        curGroup.logs.push(l);
+      } else if(!curGroup){ungrouped.push(l);}
+      else {curGroup.logs.push(l);}
+    });
+    // 记住当前展开状态
+    const openIds=new Set();
+    logList.querySelectorAll('.log-group.open').forEach(g=>openIds.add(g.dataset.sid));
+    let html=ungrouped.map(l=>`<div class="log-entry"><span class="time">${fmtTime(l.time)}</span><span class="msg">${esc(l.msg)}</span></div>`).join('');
+    groups.forEach((g,gi)=>{
+      const isLast=gi===groups.length-1;
+      const open=openIds.size?openIds.has(g.id):isLast;
+      html+=`<div class="log-group${open?' open':''}" data-sid="${g.id}"><div class="log-group-header" onclick="this.parentElement.classList.toggle('open')"><span><span class="arrow">▸</span>${g.id}</span><span class="count">${g.logs.length}</span></div><div class="log-group-body">${g.logs.map(l=>`<div class="log-entry"><span class="time">${fmtTime(l.time)}</span><span class="msg">${esc(l.msg)}</span></div>`).join('')}</div></div>`;
+    });
+    if(data.progress&&!isActive)html+=`<div class="progress-log-content">${esc(data.progress)}</div>`;
+    if(!html)html='<div class="log-entry" style="color:var(--dim)">等待日志...</div>';
+    // 只在用户已经贴近底部时才跟着滚 —— 往上翻查看历史不会被拽回去
+    const nearBottom=logList.scrollTop+logList.clientHeight>=logList.scrollHeight-24;
+    logList.innerHTML=html;
+    if(nearBottom)logList.scrollTop=logList.scrollHeight;
+  }
+
+  // 打开项目按钮：全部完成时亮起
+  const openBtn=document.getElementById('openProjectBtn');
+  if(openBtn){
+    const gDone=data.gura&&data.gura.phase==='done';
+    const stories=data.prd&&data.prd.userStories||[];
+    const allPassed=stories.length>0&&stories.every(s=>s.passes);
+    openBtn.classList.toggle('ready',gDone||allPassed);
+  }
+  updateToolbar(data);
+}
+function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML;}
+function escErr(s){if(!s)return'';return s.split('\n').map(line=>{const e=esc(line);if(/验证通过|✓/.test(line))return`<span class="el-pass">${e}</span>`;if(/需人工验证|manual/.test(line))return`<span class="el-manual">${e}</span>`;if(/失败|错误|error|fail/i.test(line))return`<span class="el-fail">${e}</span>`;return e;}).join('\n');}
+function fmtTime(iso){if(!iso)return'';return new Date(iso).toLocaleTimeString('zh-CN',{hour12:false});}
+let es;
+let _reconnectDelay=2000;
+function connect(){
+  if(es){es.close();es=null;}
+  es=new EventSource('/events');
+  es.onmessage=e=>{_reconnectDelay=2000;document.getElementById('connStatus').className='conn ok';document.getElementById('connStatus').textContent='● LIVE';try{const d=JSON.parse(e.data);render(d);updatePrdStatuses(d);}catch(err){console.error('render error:',err);}};
+  es.onerror=()=>{document.getElementById('connStatus').className='conn off';document.getElementById('connStatus').textContent='● OFFLINE';es.close();setTimeout(connect,_reconnectDelay);_reconnectDelay=Math.min(_reconnectDelay*2,30000);};
+}
+connect();
+
+// ========== Tab 切换 + PRD 审核 ==========
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=>{
+    b.classList.toggle('active',b.dataset.tab===tab);
+    if(b.dataset.tab===tab)b.classList.remove('has-update'); // 切到当前 tab 清除小红点
+  });
+  document.getElementById('tabPrd').style.display=tab==='prd'?'grid':'none';
+  document.getElementById('tabExec').style.display=tab==='exec'?'grid':'none';
+  document.getElementById('launchBar').style.display=tab==='prd'?'block':'none';
+  if(tab==='prd')loadPrdReview();
+  if(tab==='exec'){
+    fetch('/api/gura/state').then(r=>r.json()).then(d=>{
+      console.log('exec tab fetch:',d.tasks?.length);
+      render(d);
+    }).catch(err=>console.error('tab fetch error:',err));
+  }
+}
+
+// 简易 markdown→html
+function md2html(md){
+  // 先转义 HTML 特殊字符防 XSS，再做 markdown 替换
+  md = md.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return md
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>')
+    .replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>')
+    .replace(/```(\w*)\n([\s\S]*?)```/g,'<pre><code>$2</code></pre>')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>')
+    .replace(/^\- \[[ x]\] (.+)$/gm,'<div class="story-ac-item">$1</div>')
+    .replace(/^\- (.+)$/gm,'<li>$1</li>')
+    .replace(/^\| (.+)$/gm,r=>{const cells=r.split('|').filter(Boolean).map(c=>`<td>${c.trim()}</td>`).join('');return `<tr>${cells}</tr>`;})
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+}
+
+let confirmedStories=new Set();
+let launched=false;
+
+// === 新手引导空态（无 PRD 时的左面板） ===
+const _PIXEL_ORB_SVG = '<svg class="oc-sign" viewBox="0 0 16 16" shape-rendering="crispEdges"><path fill="#3d2000" d="M4 1h8v1H4zM2 2h2v1H2zM12 2h2v1h-2zM1 3h1v2H1zM14 3h1v2h-1zM0 5h1v6H0zM15 5h1v6h-1zM1 11h1v2H1zM14 11h1v2h-1zM2 13h2v1H2zM12 13h2v1h-2zM4 14h8v1H4z"/><path fill="#ffd166" d="M4 2h8v1H4zM2 3h10v1H2zM2 4h12v1H2zM1 5h14v6H1zM2 11h12v1H2zM2 12h10v1H2zM4 13h8v1H4z"/><path fill="#ffe9a3" d="M5 2h3v1H5zM3 3h5v1H3zM2 4h4v1H2zM2 5h2v3H2z"/><path fill="#d48f1f" d="M12 11h2v1h-2zM11 12h2v1h-2z"/><path fill="#3d2000" d="M7 5h2v4H7zM7 10h2v1H7z"/></svg>';
+const _PIXEL_BUBBLE_SVG = '<svg class="oc-bubble-inline" viewBox="0 0 14 12" shape-rendering="crispEdges"><path fill="#8c5a00" d="M2 0h10v1H2zM1 1h1v1H1zM12 1h1v1h-1zM0 2h1v5H0zM13 2h1v5h-1zM1 7h1v1H1zM12 7h1v1h-1zM2 8h3v1H2zM7 8h5v1H7zM4 9h1v1H4zM3 10h1v1H3zM2 11h1v1H2z"/><path fill="#ffd166" d="M2 1h10v1H2zM1 2h12v5H1zM2 7h10v1H2zM5 8h2v1H5zM3 9h1v1H3z"/><path fill="#3d2000" d="M3 4h2v1H3zM6 4h2v1H6zM9 4h2v1H9z"/></svg>';
+function onboardDocCardHtml(){
+  return `<div class="onboard-card">
+    ${_PIXEL_ORB_SVG}
+    <div class="oc-title">第一次用？<br><b>右下角 ${_PIXEL_BUBBLE_SVG} 开始对话</b></div>
+    <div class="oc-sub">把你想做的东西讲给 AI 听。它会陪你聊清楚需求，再生成 PRD 文档和可执行的 user story 列表。</div>
+    <div class="onboard-chips">
+      <button class="onboard-chip" onclick="guraStartFromExample('做一个待办清单 App，本地存储，支持分类和完成打勾')">做个待办清单</button>
+      <button class="onboard-chip" onclick="guraStartFromExample('搭一个极简博客网站，Markdown 写文章，纯静态部署')">搭个博客网站</button>
+      <button class="onboard-chip" onclick="guraStartFromExample('写一个 Markdown 编辑器，左边写右边预览，所见即所得')">Markdown 编辑器</button>
+      <button class="onboard-chip" onclick="guraStartFromExample('做一个番茄钟，支持工作/休息切换和统计图表')">番茄钟</button>
+    </div>
+    <div class="oc-arrow">↘</div>
+  </div>`;
+}
+function onboardStoriesMiniHtml(){
+  return `<div class="onboard-mini">
+    PRD 生成后，<br>一条条 <b>user story</b> 会出现在这里，<br>勾选 → 一键启动 AI Coding。
+  </div>`;
+}
+// 对外：让空态 chip 点击后打开聊天面板并预填示例
+window.guraStartFromExample = function(text){
+  if (window.guraChatPanel) {
+    window.guraChatPanel.open();
+    window.guraChatPanel.setMode('project');
+    window.guraChatPanel.prefill(text);
+  } else {
+    // 兜底：panel 还没注入就模拟点按钮
+    const tg = document.getElementById('gura-chat-toggle');
+    if (tg) tg.click();
+    setTimeout(() => {
+      const inp = document.getElementById('gcp-input');
+      if (inp) { inp.value = text; inp.focus(); }
+    }, 120);
+  }
+};
+// 控制聊天按钮是否呼吸（没 PRD 就呼吸，有 PRD 就停）
+function updateOnboardState(hasPrd){
+  if (window.guraChatPanel && typeof window.guraChatPanel.setPulse === 'function') {
+    window.guraChatPanel.setPulse(!hasPrd);
+  } else {
+    const tg = document.getElementById('gura-chat-toggle');
+    if (tg) tg.classList.toggle('onboard-pulse', !hasPrd);
+  }
+}
+
+// 核心渲染：从 prdMd + prdJson + tasks 状态直接构建 DOM（同步、无网络）
+function renderPrdReview({prdMd, prdJson, tasks}){
+  const docEl=document.getElementById('prdDoc');
+  const storiesEl=document.getElementById('prdStories');
+  if(!docEl||!storiesEl)return;
+
+  if(prdMd){docEl.innerHTML=md2html(prdMd);}
+  else{docEl.innerHTML=onboardDocCardHtml();}
+  // 重新挂回"历史"按钮（每次 innerHTML 覆盖会丢）
+  if(!docEl.querySelector('#prdHistoryBtn')){
+    const hb=document.createElement('button');
+    hb.id='prdHistoryBtn';hb.className='prd-history-btn';hb.textContent='⟳ 历史';
+    hb.title='查看/回滚 PRD 历史';
+    hb.onclick=openPrdHistory;
+    docEl.appendChild(hb);
+  }
+  // 触发淡入动画
+  docEl.classList.remove('fade-in');void docEl.offsetWidth;docEl.classList.add('fade-in');
+
+  const taskStatuses={};(tasks||[]).forEach(t=>taskStatuses[t.id]=t.status);
+  // 引擎"正在跑"才锁 UI：passed/blocked/failed 都允许用户继续编辑、增改 story、二次启动
+  if(Object.values(taskStatuses).some(s=>s==='running'))launched=true;
+
+  // 引导态：只要还没有 prd.json 就给 chat 按钮呼吸光晕
+  updateOnboardState(!!(prdJson && prdJson.userStories && prdJson.userStories.length));
+
+  if(prdJson&&prdJson.userStories){
+    const stories=prdJson.userStories;
+    if(launched)stories.forEach(s=>confirmedStories.add(s.id));
+    storiesEl.innerHTML=stories.map(s=>{
+      const conf=confirmedStories.has(s.id);
+      const st=taskStatuses[s.id]||'';
+      const stCls=st?'s-'+st:'';
+      const stIcon=st==='passed'?'⭐':st==='running'?'🔧':st==='failed'?'⚡':st==='blocked'?'💀':st==='pending'?'Zzz':'';
+      const stBar=st==='running'?'<div class="story-status-bar running">RUNNING ▸</div>':st==='passed'?'<div class="story-status-bar passed">PASSED ✓</div>':st==='failed'?'<div class="story-status-bar failed">FAILED ✗</div>':st==='blocked'?'<div class="story-status-bar blocked">BLOCKED</div>':st==='pending'?'<div class="story-status-bar pending">PENDING</div>':'';
+      return `<div class="story-card ${conf?'confirmed':''} ${stCls}" data-sid="${s.id}">
+        <div class="story-header">
+          <span class="story-id">${stIcon?`<span class="story-status-icon">${stIcon}</span>`:''} ${s.id}</span>
+          ${launched?`<span class="confirm-btn confirmed">✓ 已确认</span>`:`<button class="confirm-btn ${conf?'confirmed':''}" onclick="toggleConfirm('${s.id}')">${conf?'✓ 已确认':'确认'}</button>`}
+        </div>
+        <div class="story-title">${esc(s.title||'')}</div>
+        <div class="story-desc">${esc(s.description||'')}</div>
+        ${stBar}
+        <div class="story-ac">${(s.acceptanceCriteria||[]).map(a=>`<div class="story-ac-item">${esc(a)}</div>`).join('')}</div>
+      </div>`;
+    }).join('');
+    storiesEl.classList.remove('fade-in');void storiesEl.offsetWidth;storiesEl.classList.add('fade-in');
+    updateLaunchBtn(stories.length);
+  } else {
+    storiesEl.innerHTML=onboardStoriesMiniHtml();
+    storiesEl.classList.remove('fade-in');void storiesEl.offsetWidth;storiesEl.classList.add('fade-in');
+  }
+}
+
+// === PRD 历史快照面板 ===
+function openPrdHistory(){
+  const m=document.getElementById('prdHistoryModal');
+  if(!m)return;
+  m.classList.add('open');
+  loadPrdHistoryList();
+}
+function closePrdHistory(){
+  const m=document.getElementById('prdHistoryModal');
+  if(m)m.classList.remove('open');
+}
+async function loadPrdHistoryList(){
+  const box=document.getElementById('prdHistoryList');
+  if(!box)return;
+  box.innerHTML='<div class="prd-history-empty">加载中…</div>';
+  try{
+    const r=await fetch('/api/prd/history');
+    const d=await r.json();
+    const list=d.history||[];
+    if(!list.length){box.innerHTML='<div class="prd-history-empty">还没有历史快照。<br>AI 每次改写 prd.json 都会自动留一份。</div>';return;}
+    box.innerHTML=list.map(item=>{
+      // mtime 形如 "2026-05-11T14-30-22-123Z"（点和冒号都被 ISO 替换成了 "-"），还原成 YYYY-MM-DD HH:MM:SS
+      const m=item.mtime.match(/^(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})-(\d{2})/);
+      const ts=m?`${m[1]}  ${m[2]}:${m[3]}:${m[4]}`:item.mtime;
+      return `<div class="prd-history-row" data-name="${item.name}">
+        <div><div class="ts">${ts}</div><div class="meta">${item.name}</div></div>
+        <button class="rollback" data-name="${item.name}">↶ 回滚到此版本</button>
+      </div>`;
+    }).join('');
+    // 点击行预览（暂未实现预览面板，先只挂回滚按钮）
+    box.querySelectorAll('.rollback').forEach(b=>{
+      b.onclick=async (e)=>{e.stopPropagation();await rollbackPrd(b.dataset.name);};
+    });
+  }catch(e){
+    box.innerHTML='<div class="prd-history-empty">加载失败：'+e.message+'</div>';
+  }
+}
+async function rollbackPrd(name){
+  if(!confirm('确认回滚到这份快照？\n当前 prd.json 会先备份再覆盖。'))return;
+  try{
+    const r=await fetch('/api/prd/rollback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    const d=await r.json();
+    if(d.ok){closePrdHistory();loadPrdReview();}
+    else alert('回滚失败：'+(d.error||'unknown'));
+  }catch(e){alert('回滚失败：'+e.message);}
+}
+
+// === CLI 管理（主界面常驻入口） ===
+let _cliTestState = {}; // id -> 'loading' | {ok, hint, detail, ms}
+function openCliManager(){
+  const m=document.getElementById('cliManagerModal');
+  if(!m||!window.gura)return;
+  m.classList.add('open');
+  cliRefresh();
+}
+function closeCliManager(){
+  const m=document.getElementById('cliManagerModal');
+  if(m)m.classList.remove('open');
+}
+async function cliRefresh(){
+  const box=document.getElementById('cliRows');
+  const st=document.getElementById('cliStatus');
+  st.innerHTML='<span>扫描中…</span>';
+  try{
+    const data=await window.gura.listCli();
+    const all=[...(data.detected||[]),...(data.custom||[])];
+    st.innerHTML=`<span class="ok">已扫描：系统 ${data.detected.length} · 自定义 ${data.custom.length}</span>`;
+    if(!all.length){
+      box.innerHTML='<div class="cli-empty-msg">未检测到任何 AI CLI。<br>安装 <code>claude</code> / <code>codex</code> / <code>gemini</code> / <code>kiro-cli</code> 等，<br>或点"＋ 手动添加"接入自定义 CLI。</div>';
+      return;
+    }
+    box.innerHTML=all.map(c=>{
+      const a=c.id===data.active;
+      const custom=c.source==='custom';
+      const t=_cliTestState[c.id];
+      let testHtml='';
+      if(t==='loading'){testHtml='<span class="cli-test-tag loading">测试中…</span>';}
+      else if(t&&t.ok===true){testHtml=`<span class="cli-test-tag ok" title="${esc((t.stdout||'').slice(0,200))}">✓ 连通 (${(t.ms/1000).toFixed(1)}s)</span>`;}
+      else if(t&&t.ok===false){testHtml=`<span class="cli-test-tag err" title="${esc((t.detail||'').slice(0,200))}">✗ ${esc(t.hint||'失败')}</span>`;}
+      return `<div class="cli-row ${a?'active':''}" data-id="${esc(c.id)}">
+        <div class="hd">
+          <span class="name">${esc(c.name)}</span>
+          <span class="src ${custom?'custom':''}">${custom?'自定义':'已检测'}</span>
+        </div>
+        <div class="path">${esc(c.path||c.bin||'')}</div>
+        ${c.version?`<div class="ver">版本：${esc(c.version)}</div>`:''}
+        <div class="acts">
+          ${a?'<span class="default-tag">✓ 当前默认</span>':`<button class="default-btn" onclick="cliSetDefault('${esc(c.id)}')">设为默认</button>`}
+          <button class="test-btn" onclick="cliTest('${esc(c.id)}')">测试连通</button>
+          ${custom?`<button class="remove-btn" onclick="cliRemove('${esc(c.id)}')">移除</button>`:''}
+          ${testHtml}
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    st.innerHTML=`<span class="err">扫描失败：${esc(e.message||e)}</span>`;
+    box.innerHTML='';
+  }
+}
+async function cliTest(id){
+  _cliTestState[id]='loading';
+  cliRefresh();
+  try{
+    const r=await window.gura.testCli(id);
+    _cliTestState[id]=r;
+  }catch(e){
+    _cliTestState[id]={ok:false,hint:e.message||'调用失败'};
+  }
+  cliRefresh();
+}
+async function cliRescan(){
+  try{await window.gura.rescanCli();}catch{}
+  await cliRefresh();
+}
+async function cliSetDefault(id){
+  try{
+    await window.gura.setActiveCli(id);
+    await cliRefresh();
+  }catch(e){alert('设置失败：'+(e.message||e));}
+}
+async function cliRemove(id){
+  if(!confirm('移除这个自定义 CLI？（不会删除文件本身）'))return;
+  try{
+    await window.gura.removeCli(id);
+    await cliRefresh();
+  }catch(e){alert('移除失败：'+(e.message||e));}
+}
+// 添加模态
+function openCliAdd(){
+  const m=document.getElementById('cliAddModal');
+  if(m){m.classList.add('open');setTimeout(()=>document.getElementById('clia_name').focus(),50);}
+}
+function closeCliAdd(){
+  const m=document.getElementById('cliAddModal');
+  if(m)m.classList.remove('open');
+  document.getElementById('clia_name').value='';
+  document.getElementById('clia_path').value='';
+  document.getElementById('clia_tpl').value='';
+}
+async function saveCliAdd(){
+  const name=document.getElementById('clia_name').value.trim();
+  const p=document.getElementById('clia_path').value.trim();
+  const tplRaw=document.getElementById('clia_tpl').value.trim();
+  if(!name||!p){alert('请填写名称和路径');return;}
+  const chatTemplate=tplRaw?tplRaw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean):['{prompt}'];
+  try{
+    await window.gura.addCli({name,path:p,chatTemplate});
+    closeCliAdd();
+    await cliRefresh();
+  }catch(e){alert('保存失败：'+(e.message||e));}
+}
+// 浏览可执行文件
+(function(){
+  const b=document.getElementById('clia_browse');
+  if(b)b.onclick=async()=>{
+    try{
+      const p=await window.gura.pickExecutable();
+      if(p)document.getElementById('clia_path').value=p;
+    }catch(e){console.warn(e);}
+  };
+  const btn=document.getElementById('cliBtn');
+  if(btn)btn.onclick=openCliManager;
+})();
+
+// === 历史任务（会话归档）===
+function openSessionHistory(){
+  const m=document.getElementById('sessionModal');
+  if(!m)return;
+  m.classList.add('open');
+  loadSessionHistory();
+}
+function closeSessionHistory(){
+  const m=document.getElementById('sessionModal');
+  if(m)m.classList.remove('open');
+}
+async function loadSessionHistory(){
+  const box=document.getElementById('sessionList');
+  if(!box)return;
+  box.innerHTML='<div class="runlog-empty">加载中…</div>';
+  try{
+    const r=await fetch('/api/session/list');
+    const d=await r.json();
+    const list=d.sessions||[];
+    if(!list.length){
+      box.innerHTML='<div class="runlog-empty">还没有历史任务。<br>每次打开项目时，旧的 PRD 和任务会自动归档到这里。</div>';
+      return;
+    }
+    box.innerHTML=list.map(s=>{
+      const name=esc(s.project||'Untitled');
+      const progress=s.progress||'0/0';
+      const done=s.allPassed?'<span style="color:var(--green)">✓ 全部通过</span>':'';
+      const stories=s.storiesCount||0;
+      const tm=s.name.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})/);
+      const ts=tm?`${tm[1]}-${tm[2]}-${tm[3]} ${tm[4]}:${tm[5]}`:s.createdAt||'';
+      return `<div class="runlog-row" style="cursor:default">
+        <span class="rl-ico">${s.allPassed?'⭐':'📋'}</span>
+        <div class="rl-body">
+          <div class="rl-line1"><b>${name}</b> <span class="arrow">${stories} stories · ${progress}</span> ${done}</div>
+          <div class="rl-note" style="font-size:10px;opacity:.6">${ts}</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="test-btn" onclick="sessionRestore('${esc(s.name)}')">↶ 恢复</button>
+          <button class="remove-btn" onclick="sessionDelete('${esc(s.name)}')">✗</button>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){
+    box.innerHTML='<div class="runlog-empty">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+async function sessionRestore(name){
+  if(!confirm('恢复这个历史任务？\n当前工作区会先归档再恢复。'))return;
+  try{
+    const r=await fetch('/api/session/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    const d=await r.json();
+    if(d.ok){closeSessionHistory();location.reload();}
+    else alert('恢复失败：'+(d.error||'unknown'));
+  }catch(e){alert('恢复失败：'+e.message);}
+}
+async function sessionDelete(name){
+  if(!confirm('确认删除这条历史记录？（不可恢复）'))return;
+  try{
+    await fetch('/api/session/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+    loadSessionHistory();
+  }catch(e){alert('删除失败：'+e.message);}
+}
+
+// === 执行历史模态 ===
+function openRunLog(){
+  const m=document.getElementById('runLogModal');
+  if(!m)return;
+  m.classList.add('open');
+  loadRunLog();
+}
+function closeRunLog(){
+  const m=document.getElementById('runLogModal');
+  if(m)m.classList.remove('open');
+}
+async function loadRunLog(){
+  const box=document.getElementById('runLogList');
+  if(!box)return;
+  box.innerHTML='<div class="runlog-empty">加载中…</div>';
+  try{
+    const r=await fetch('/api/gura/run-log?limit=200');
+    const d=await r.json();
+    renderRunLog(d.items||[]);
+  }catch(e){
+    box.innerHTML='<div class="runlog-empty">加载失败：'+esc(e.message)+'</div>';
+  }
+}
+const _RL_TYPE={
+  passed:{ico:'⭐',cls:'t-passed',label:'PASSED'},
+  failed:{ico:'⚡',cls:'t-failed',label:'FAILED'},
+  blocked:{ico:'💀',cls:'t-blocked',label:'BLOCKED'},
+  running:{ico:'🔧',cls:'t-running',label:'RUNNING'},
+  pending:{ico:'Zzz',cls:'',label:'PENDING'}
+};
+function _rlTime(iso){
+  try{const d=new Date(iso);const p=n=>String(n).padStart(2,'0');return `${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;}catch{return iso;}
+}
+function renderRunLog(items){
+  const box=document.getElementById('runLogList');
+  if(!box)return;
+  if(!items.length){
+    box.innerHTML='<div class="runlog-empty">还没有执行记录。<br>启动 Gura 后，每次任务状态变化会在这里留痕。</div>';
+    return;
+  }
+  box.innerHTML=items.map(ev=>{
+    let ico='•',cls='',line1='',note='';
+    if(ev.type==='story_transition'){
+      const toMeta=_RL_TYPE[ev.to]||{ico:'•',cls:''};
+      ico=toMeta.ico;cls=toMeta.cls;
+      const sid=ev.storyId?`<span class="sid">${esc(ev.storyId)}</span>`:'';
+      const title=ev.storyTitle?`<span class="stitle">${esc(ev.storyTitle)}</span>`:'';
+      line1=`${sid}${title}<span class="arrow">${esc(ev.from||'new')} → ${esc(ev.to||'?')}</span>`;
+      if(ev.notes)note=ev.notes;
+    } else if(ev.type==='story_retry'){
+      ico='↻';cls='t-retry';
+      line1=`<span class="sid">${esc(ev.storyId||'')}</span><span class="stitle">${esc(ev.storyTitle||'')}</span><span class="arrow">retry × ${ev.retry||1}</span>`;
+      if(ev.notes)note=ev.notes;
+    } else if(ev.type==='launch'){
+      ico='▶';cls='t-launch';
+      line1=`<span class="stitle">启动引擎</span> <span class="arrow">agent=${esc(ev.agent||'?')} · ${ev.stories||0} stories · pid ${ev.pid||'-'}</span>`;
+    } else if(ev.type==='unlock'){
+      ico='↶';cls='t-unlock';
+      line1=`<span class="stitle">解锁编辑</span> <span class="arrow">reset ${ev.resetCount||0} / 保留 ${ev.keptPassed||0} passed</span>`;
+    } else if(ev.type==='project_complete'){
+      ico='🏆';cls='t-complete';
+      line1=`<span class="stitle">项目通关</span> <span class="arrow">${ev.stories||'?'} stories all passed</span>`;
+    } else if(ev.type==='engine_exit'){
+      ico='⚡';cls=ev.code===0?'t-running':'t-failed';
+      line1=`<span class="stitle">引擎退出</span> <span class="arrow">${esc(ev.cmd||'')} code=${ev.code}${ev.signal?' sig='+esc(ev.signal):''}</span>`;
+      if(ev.stderr)note=ev.stderr;
+    } else {
+      line1=`<span class="stitle">${esc(ev.type||'event')}</span>`;
+    }
+    return `<div class="runlog-row ${cls}">
+      <span class="rl-ico">${ico}</span>
+      <div class="rl-body">
+        <div class="rl-line1">${line1}</div>
+        ${note?`<div class="rl-note">${esc(String(note).slice(0,400))}</div>`:''}
+      </div>
+      <span class="rl-time">${_rlTime(ev.ts)}</span>
+    </div>`;
+  }).join('');
+}
+
+// === 全局快捷键 ===
+// Cmd+1/2 切 tab · Cmd+K 开关聊天 · Cmd+Shift+L 执行历史 · Esc 关闭最上层模态
+function _isTypingTarget(el){
+  if(!el)return false;
+  const tag=(el.tagName||'').toUpperCase();
+  return tag==='INPUT'||tag==='TEXTAREA'||el.isContentEditable;
+}
+function _closeTopModal(){
+  const rl=document.getElementById('runLogModal');
+  const ph=document.getElementById('prdHistoryModal');
+  const cli=document.getElementById('gcp-add-modal');
+  const cm=document.getElementById('cliManagerModal');
+  const ca=document.getElementById('cliAddModal');
+  const sm=document.getElementById('sessionModal');
+  if(ca&&ca.classList.contains('open')){ca.classList.remove('open');return true;}
+  if(cm&&cm.classList.contains('open')){cm.classList.remove('open');return true;}
+  if(sm&&sm.classList.contains('open')){sm.classList.remove('open');return true;}
+  if(rl&&rl.classList.contains('open')){rl.classList.remove('open');return true;}
+  if(ph&&ph.classList.contains('open')){ph.classList.remove('open');return true;}
+  if(cli&&cli.classList.contains('open')){cli.classList.remove('open');return true;}
+  // 聊天面板作为 last resort
+  if(window.guraChatPanel&&window.guraChatPanel.isOpen&&window.guraChatPanel.isOpen()){
+    window.guraChatPanel.close();return true;
+  }
+  return false;
+}
+window.addEventListener('keydown',(e)=>{
+  // Esc：任何时候都允许关模态（包括 input 内）
+  if(e.key==='Escape'){
+    if(_closeTopModal()){e.preventDefault();}
+    return;
+  }
+  // 其他快捷键：输入框里不拦截，让用户正常打字
+  if(_isTypingTarget(e.target))return;
+  const mod=e.metaKey||e.ctrlKey;
+  if(!mod)return;
+  // Cmd+K：开关聊天面板
+  if(e.key==='k'||e.key==='K'){
+    e.preventDefault();
+    if(!window.guraChatPanel)return;
+    if(window.guraChatPanel.isOpen())window.guraChatPanel.close();
+    else window.guraChatPanel.open();
+    return;
+  }
+  // Cmd+Shift+L：打开执行历史
+  if(e.shiftKey&&(e.key==='l'||e.key==='L')){
+    e.preventDefault();openRunLog();return;
+  }
+  // Cmd+Shift+C：打开 CLI 管理
+  if(e.shiftKey&&(e.key==='c'||e.key==='C')){
+    e.preventDefault();openCliManager();return;
+  }
+  // Cmd+Shift+H：打开历史任务
+  if(e.shiftKey&&(e.key==='h'||e.key==='H')){
+    e.preventDefault();openSessionHistory();return;
+  }
+  // Cmd+1 / Cmd+2：切 tab
+  if(!e.shiftKey&&!e.altKey){
+    if(e.key==='1'){e.preventDefault();switchTab('prd');return;}
+    if(e.key==='2'){e.preventDefault();switchTab('exec');return;}
+  }
+});
+
+// 兜底：首次进入页面时 SSE 还没到，走一次 HTTP 拉取
+async function loadPrdReview(){
+  try{
+    const resp=await fetch('/api/prd/review');
+    const data=await resp.json();
+    const sr=await fetch('/api/gura/state');
+    const sd=await sr.json();
+    renderPrdReview({prdMd:data.prdMd, prdJson:data.prdJson, tasks:sd.tasks});
+  }catch(e){console.error('loadPrdReview',e);}
+}
+
+function toggleConfirm(id){
+  if(launched)return;
+  if(confirmedStories.has(id))confirmedStories.delete(id);else confirmedStories.add(id);
+  // 仅更新这一张卡的视觉态，避免整块重绘
+  const card=document.querySelector(`.story-card[data-sid="${id}"]`);
+  if(card){
+    const conf=confirmedStories.has(id);
+    card.classList.toggle('confirmed',conf);
+    const btn=card.querySelector('.confirm-btn');
+    if(btn){btn.classList.toggle('confirmed',conf);btn.textContent=conf?'✓ 已确认':'确认';}
+  }
+  updateLaunchBtn(document.querySelectorAll('.story-card[data-sid]').length);
+}
+
+function confirmAll(){
+  if(launched)return;
+  document.querySelectorAll('.story-card[data-sid]').forEach(el=>{
+    confirmedStories.add(el.dataset.sid);
+    el.classList.add('confirmed');
+    const btn=el.querySelector('.confirm-btn');
+    if(btn){btn.classList.add('confirmed');btn.textContent='✓ 已确认';}
+  });
+  document.getElementById('confirmAllBtn').textContent='☑ 已全部确认';
+  document.getElementById('confirmAllBtn').style.borderColor='var(--green)';
+  document.getElementById('confirmAllBtn').style.color='var(--green)';
+  updateLaunchBtn(document.querySelectorAll('.story-card[data-sid]').length);
+}
+
+function updateLaunchBtn(total){
+  const btn=document.getElementById('launchBtn');
+  const cab=document.getElementById('confirmAllBtn');
+  const unlk=document.getElementById('unlockBtn');
+  if(launched){btn.innerHTML='💡 已启动';btn.disabled=true;btn.classList.add('launched');cab.style.display='none';if(unlk)unlk.style.display='inline-block';return;}
+  if(unlk)unlk.style.display='none';
+  cab.style.display='inline-block';
+  btn.classList.remove('launched');
+  const n=confirmedStories.size;
+  btn.disabled=n<total;
+  btn.textContent=n>=total?'▶ 启动 Gura 自动执行':`▶ 已确认 ${n}/${total}，全部确认后启动`;
+}
+
+async function unlockLaunch(){
+  if(!launched)return;
+  if(!confirm('确认解锁？\n未通过的任务会重置为待执行，已通过的任务保留。\n如果引擎正在跑，会先暂停。'))return;
+  try{
+    await fetch('/api/gura/unlock',{method:'POST'});
+  }catch(e){console.warn('unlock failed',e);}
+  launched=false;
+  // 不清空 confirmedStories —— 用户之前的确认意图保留，方便重新点启动
+  const btn=document.getElementById('launchBtn');
+  btn.classList.remove('launched');
+  btn.disabled=false;
+  // 触发一次重渲染拿到最新 pending 任务态
+  loadPrdReview();
+}
+
+async function launchGura(){
+  const btn=document.getElementById('launchBtn');
+  if(btn.disabled)return;
+  btn.disabled=true;
+  btn.innerHTML='⏳ 启动中…';
+  launched=true;
+  await fetch('/api/prd/confirm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirmed:[...confirmedStories]})});
+  await fetch('/api/gura/sync',{method:'POST'});
+  await fetch('/api/gura/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({agent:document.getElementById('agentSelect').value})});
+  switchTab('exec');
+  setTimeout(()=>fetch('/api/gura/state').then(r=>r.json()).then(render),500);
+  btn.innerHTML='💡 已启动';
+  btn.classList.add('launched');
+}
+
+// 初始加载PRD
+loadPrdReview();
+
+// === 动态对齐：tab 内容区紧贴 tab 栏底，永远不出现缝隙 ===
+function alignTabContent(){
+  const bar = document.querySelector('.tab-bar');
+  if (!bar) return;
+  const bottom = Math.round(bar.getBoundingClientRect().bottom);
+  if (!bottom) return;
+  const top = bottom + 'px';
+  const prd = document.getElementById('tabPrd');
+  const exe = document.getElementById('tabExec');
+  if (prd && prd.style.top !== top) prd.style.top = top;
+  if (exe && exe.style.top !== top) exe.style.top = top;
+}
+window.addEventListener('resize', alignTabContent);
+// 多个触发点确保稳定：DOM ready、layout、字体加载、tab-bar 尺寸变化
+requestAnimationFrame(() => requestAnimationFrame(alignTabContent));
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(alignTabContent);
+}
+// ResizeObserver 监听 tab-bar 自己的尺寸变化（字体加载/内容变化/缩放时都会触发）
+if (window.ResizeObserver) {
+  const bar = document.querySelector('.tab-bar');
+  if (bar) new ResizeObserver(alignTabContent).observe(bar);
+}
+// 再加几个延时兜底，避免 Electron 下字体 promise 不走标准路径
+setTimeout(alignTabContent, 100);
+setTimeout(alignTabContent, 500);
+setTimeout(alignTabContent, 1500);
+
+// passed卡片持续金色星星粒子
+const STAR_CHARS=['✦','✧','★','·','⭑'];
+function spawnPassStars(){
+  document.querySelectorAll('.task-card.passed,.story-card.s-passed').forEach(card=>{
+    if(card.offsetParent===null)return;
+    const r=card.getBoundingClientRect();
+    if(r.bottom<0||r.top>window.innerHeight)return;// 视口外跳过
+    const s=document.createElement('span');
+    s.className='pass-star';
+    s.textContent=STAR_CHARS[Math.random()*STAR_CHARS.length|0];
+    s.style.left=Math.random()*90+5+'%';
+    s.style.setProperty('--dur',(1+Math.random()*1.5)+'s');
+    s.style.setProperty('--rise',(60+Math.random()*80)+'px');
+    s.style.fontSize=(6+Math.random()*8)+'px';
+    card.appendChild(s);
+    s.addEventListener('animationend',()=>s.remove());
+  });
+}
+setInterval(spawnPassStars,800);
+
+// SSE推送时实时更新PRD页（直接用 payload 渲染，无 HTTP 二跳）
+let lastPrdSig = '';
+function updatePrdStatuses(data){
+  const stories = data.prd && data.prd.userStories || [];
+  // 指纹：文档长度 + story 完整结构（含 id/title/passes/blocked）
+  const sig = (data.prdMd || '').length + '|' + stories.map(s => s.id + ':' + (s.title||'').length + ':' + (s.passes?1:0) + (s.blocked?1:0)).join(',');
+  if (sig !== lastPrdSig) {
+    lastPrdSig = sig;
+    // 内容结构变了 → 整块重渲染（SSE 已携带全部数据，零网络）
+    renderPrdReview({prdMd:data.prdMd, prdJson:data.prd, tasks:data.tasks});
+    // 用户当前不在 PRD tab 时，标个未读小红点提示
+    if (stories.length && !document.querySelector('.tab-btn[data-tab="prd"]').classList.contains('active')) {
+      document.querySelector('.tab-btn[data-tab="prd"]').classList.add('has-update');
+    }
+    return; // 整块重建已包含状态条/图标，不必再差量更新
+  }
+  if(!data.tasks)return;
+  const map={};data.tasks.forEach(t=>map[t.id]=t.status);
+  document.querySelectorAll('.story-card[data-sid]').forEach(card=>{
+    const sid=card.dataset.sid,st=map[sid]||'';
+    card.className=card.className.replace(/\bs-\w+/g,'').trim();
+    if(st)card.classList.add('s-'+st);
+    if(card.classList.contains('confirmed')){}// keep
+    // 图标
+    const icon=st==='passed'?'⭐':st==='running'?'🔧':st==='failed'?'⚡':st==='blocked'?'💀':st==='pending'?'Zzz':'';
+    let iconEl=card.querySelector('.story-status-icon');
+    if(!iconEl&&icon){
+      const idEl=card.querySelector('.story-id');
+      if(idEl){iconEl=document.createElement('span');iconEl.className='story-status-icon';idEl.prepend(iconEl);}
+    }
+    if(iconEl)iconEl.textContent=icon;
+    // 状态条
+    const oldBar=card.querySelector('.story-status-bar');if(oldBar)oldBar.remove();
+    const barHtml=st==='running'?'<div class="story-status-bar running">RUNNING ▸</div>':st==='passed'?'<div class="story-status-bar passed">PASSED ✓</div>':st==='failed'?'<div class="story-status-bar failed">FAILED ✗</div>':st==='blocked'?'<div class="story-status-bar blocked">BLOCKED</div>':st==='pending'?'<div class="story-status-bar pending">PENDING</div>':'';
+    if(barHtml){const ac=card.querySelector('.story-ac');if(ac)ac.insertAdjacentHTML('beforebegin',barHtml);}
+  });
+}
+
+// 工具栏点击
+document.querySelector('.tb-slots').addEventListener('click',e=>{
+  const slot=e.target.closest('.toolbar-slot');
+  if(!slot)return;
+  document.querySelectorAll('.toolbar-slot').forEach(s=>s.classList.remove('active'));
+  slot.classList.add('active');
+});
+
+// 工具栏状态更新 —— HP/心情/金币/等级 全部来自持久化 stats（由 server 端 applyStatsDelta 实时维护）
+let _lastHp=null,_lastMood=null,_lastGold=null,_lastLv=null;
+function animateNum(el,from,to,duration){
+  if(from===null||from===to){el.textContent=to;return;}
+  const start=performance.now();
+  function step(t){
+    const k=Math.min(1,(t-start)/duration);
+    const e=1-Math.pow(1-k,3); // ease-out cubic
+    el.textContent=Math.round(from+(to-from)*e);
+    if(k<1)requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+function flashEl(id,color){
+  const el=document.getElementById(id);if(!el)return;
+  el.style.transition='box-shadow .3s';
+  el.style.boxShadow=`0 0 12px ${color}`;
+  setTimeout(()=>{el.style.boxShadow='';},600);
+}
+function updateToolbar(data){
+  const st=data.stats||{};
+  const hp=Math.max(0,Math.min(100,Math.round(st.hp!=null?st.hp:100)));
+  const mood=Math.max(0,Math.min(100,Math.round(st.mood!=null?st.mood:80)));
+  const gold=Math.max(0,st.gold||0);
+  const lv=st.level||1;
+
+  document.getElementById('tbHp').style.width=hp+'%';
+  document.getElementById('tbMood').style.width=mood+'%';
+  const hpVal=document.getElementById('tbHpVal'); animateNum(hpVal, _lastHp, hp, 400);
+  const moodVal=document.getElementById('tbMoodVal'); animateNum(moodVal, _lastMood, mood, 400);
+  const goldEl=document.getElementById('tbGold'); animateNum(goldEl, _lastGold, gold, 500);
+
+  // 数值变化提示动画：金币↑ 黄色，HP↓ 红色，心情↑ 绿色
+  if(_lastGold!==null && gold>_lastGold) flashEl('tbGold','#ffd166');
+  if(_lastHp!==null && hp<_lastHp) flashEl('tbHpVal','#ef4444');
+  if(_lastMood!==null && mood>_lastMood) flashEl('tbMoodVal','#4ade80');
+  if(_lastLv!==null && lv>_lastLv){
+    // 升级！整个 lv 标签金光闪烁
+    const lvEl=document.getElementById('tbLv');
+    lvEl.style.transition='all .4s';
+    lvEl.style.textShadow='0 0 16px #ffd166,0 0 28px #ffd166';
+    lvEl.style.transform='scale(1.4)';
+    setTimeout(()=>{lvEl.style.textShadow='';lvEl.style.transform='';},800);
+  }
+
+  _lastHp=hp; _lastMood=mood; _lastGold=gold; _lastLv=lv;
+
+  // mood 表情
+  const mi=document.getElementById('tbMoodIcon');
+  if(mood>=80)mi.textContent='☺';
+  else if(mood>=50)mi.textContent='😐';
+  else mi.textContent='☹';
+
+  document.getElementById('tbName').textContent=st.name||'Gura';
+  document.getElementById('tbLv').textContent='Lv.'+lv;
+  const tm=st.totalMinutes||0;
+  const d=Math.floor(tm/1440),h=Math.floor((tm%1440)/60),m=tm%60;
+  document.getElementById('tbTime').textContent=d+'d '+h+'h '+m+'m';
+}
+
+// 打开项目目录
+function jumpToRunning(){
+  const card=document.querySelector('.task-card.running');
+  if(card)card.scrollIntoView({behavior:'smooth',block:'center'});
+}
+async function openProject(){
+  if(!document.getElementById('openProjectBtn').classList.contains('ready'))return;
+  await fetch('/api/gura/open-project',{method:'POST'});
+}
+
+// 暂停/恢复
+let isPaused=false;
+async function togglePause(){
+  if(isPaused){
+    await fetch('/api/gura/resume',{method:'POST'});
+    isPaused=false;
+    document.getElementById('pauseBtn').textContent='⏸ 暂停';
+    document.getElementById('pauseBtn').classList.remove('paused');
+  } else {
+    await fetch('/api/gura/pause',{method:'POST'});
+    isPaused=true;
+    document.getElementById('pauseBtn').textContent='▶ 恢复';
+    document.getElementById('pauseBtn').classList.add('paused');
+  }
+}
+
+// 跳过当前story
+async function skipStory(){
+  await fetch('/api/gura/skip',{method:'POST'});
+}
+</script>
+</body>
+</html>

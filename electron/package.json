@@ -1,0 +1,68 @@
+{
+  "name": "gacoding-desktop",
+  "version": "1.0.0",
+  "description": "GACoding — AI 自动化 Coding 系统（桌面版）",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:mac:app": "electron-builder --mac dir --arm64",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "node-pty": "^1.0.0"
+  },
+  "build": {
+    "appId": "com.gura.gacoding",
+    "productName": "GACoding",
+    "icon": "build/icon",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "cli-detector.js",
+      "cli-registry.js",
+      "chat-runner.js",
+      "renderer/**/*"
+    ],
+    "extraResources": [
+      { "from": "../server.mjs", "to": "app/server.mjs" },
+      { "from": "../ui.html", "to": "app/ui.html" },
+      { "from": "../gura.py", "to": "app/gura.py" },
+      { "from": "../BUILDER.md", "to": "app/BUILDER.md" },
+      { "from": "../VALIDATOR.md", "to": "app/VALIDATOR.md" },
+      { "from": "../FINAL_VALIDATOR.md", "to": "app/FINAL_VALIDATOR.md" },
+      { "from": "../AGENTS-template.md", "to": "app/AGENTS-template.md" },
+      { "from": "../Zpix.ttf", "to": "app/Zpix.ttf" },
+      { "from": "../avatars", "to": "app/avatars" },
+      { "from": "../backgrounds", "to": "app/backgrounds" },
+      { "from": "../skills", "to": "app/skills" },
+      { "from": "../commands", "to": "app/commands" }
+    ],
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64", "x64"] }
+      ],
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    }
+  }
+}
